@@ -14,6 +14,8 @@ import StationSelectorModal from "./components/StationSelectorModal";import {
 
 function WaveformViewer() {
   // Network & Station
+  const [waveformWarnings, setWaveformWarnings] =
+  useState([]);
   const [selectedNetwork, setSelectedNetwork] = useState("IA");
   const [selectedStations, setSelectedStations] =
   useState([]);
@@ -140,7 +142,7 @@ function WaveformViewer() {
     }
 
     try {
-      const waveformResults = await Promise.all(
+      const waveformResults = await Promise.allSettled(
         selectedStations.map(async (station) => {
           const waveform = await getWaveform({
             network: selectedNetwork,
@@ -170,7 +172,24 @@ function WaveformViewer() {
         })
       );
 
-      const allTraces = waveformResults.flat();
+      const successfulTraces = [];
+      const warnings = [];
+
+      waveformResults.forEach((result, index) => {
+        const station = selectedStations[index];
+
+        if (result.status === "fulfilled") {
+          successfulTraces.push(...result.value);
+        } else {
+          warnings.push(
+            `${station}: ${result.reason.message}`
+          );
+        }
+      });
+
+      setWaveformWarnings(warnings);
+
+      const allTraces = successfulTraces;
 
       const combinedWaveform = {
         traces: allTraces,
@@ -341,6 +360,18 @@ function WaveformViewer() {
           </div>
 
         </section>
+
+
+        {/* Waveform Warnings */}
+        {waveformWarnings.length > 0 && (
+          <div className="waveform-warning">
+            {waveformWarnings.map((warning, index) => (
+              <div key={`${warning}-${index}`}>
+                {warning}
+              </div>
+            ))}
+          </div>
+        )}
 
 
         {/* Trace Selector */}
