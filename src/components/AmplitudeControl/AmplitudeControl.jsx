@@ -32,75 +32,92 @@ function AmplitudeControl({
   }
   
   return (
-    
-    <div className="amplitude-control">
-      <div className="normalize-control">
-        <label>
-          <input
-            type="checkbox"
-            checked={normalize}
-            onChange={(event) =>
-              setNormalize(event.target.checked)
-            }
-          />
+    <div className="amplitude-control-compact">
 
-          <span>Normalize Waveform</span>
-        </label>
-      </div>
-      <div className="amplitude-control-header">
-        <label htmlFor="amplitude-scale">
-          Amplitude Scale
-        </label>
-
-        <div className="amplitude-scale-input-wrapper">
-          <input
-            type="number"
-            min="0.1"
-            max="5"
-            step="0.1"
-            value={inputValue}
-            onChange={(event) =>
-              setInputValue(event.target.value)
-            }
-            onBlur={applyInputValue}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                applyInputValue();
-                event.currentTarget.blur();
-              }
-            }}
-          />
-
-          <span>×</span>
-        </div>
-      </div>
-
-      <div className="amplitude-control-row">
-        <span>0.1×</span>
-
+      {/* Normalize */}
+      <label className="normalize-compact">
         <input
-          id="amplitude-scale"
-          type="range"
-          min="0.1"
-          max="5"
-          step="0.1"
-          value={amplitudeScale}
+          type="checkbox"
+          checked={normalize}
           onChange={(event) =>
-            setAmplitudeScale(
-              Number(event.target.value)
-            )
+            setNormalize(event.target.checked)
           }
         />
 
-        <span>5×</span>
+        <span>Normalize</span>
+      </label>
 
-        <button
-          type="button"
-          onClick={() => setAmplitudeScale(1)}
-        >
-          Reset
-        </button>
+      {/* Separator */}
+      <div className="control-separator" />
+
+      {/* Amplitude Title */}
+      <label
+        className="amplitude-compact-title"
+        htmlFor="amplitude-scale"
+      >
+        Amplitude
+      </label>
+
+      {/* Minimum */}
+      <span className="amplitude-limit">
+        0.1×
+      </span>
+
+      {/* Slider */}
+      <input
+        id="amplitude-scale"
+        className="amplitude-compact-slider"
+        type="range"
+        min="0.1"
+        max="5"
+        step="0.1"
+        value={amplitudeScale}
+        onChange={(event) =>
+          setAmplitudeScale(
+            Number(event.target.value)
+          )
+        }
+      />
+
+      {/* Maximum */}
+      <span className="amplitude-limit">
+        5×
+      </span>
+
+      {/* Number Input */}
+      <div className="amplitude-scale-input-wrapper">
+        <input
+          type="number"
+          min="0.1"
+          max="5"
+          step="0.1"
+          value={inputValue}
+          onChange={(event) =>
+            setInputValue(event.target.value)
+          }
+          onBlur={applyInputValue}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              applyInputValue();
+              event.currentTarget.blur();
+            }
+          }}
+        />
+
+        <span>×</span>
       </div>
+
+      {/* Reset */}
+      <button
+        className="amplitude-reset-button"
+        type="button"
+        onClick={() =>
+          setAmplitudeScale(1)
+        }
+      >
+        Reset
+      </button>
+
     </div>
   );
 }

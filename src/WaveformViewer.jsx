@@ -14,6 +14,8 @@ import StationSelectorModal from "./components/StationSelectorModal";import {
 
 function WaveformViewer() {
   // Network & Station
+  const [isTraceSelectorOpen, setIsTraceSelectorOpen] =
+  useState(false);
   const [waveformWarnings, setWaveformWarnings] =
   useState([]);
   const [selectedNetwork, setSelectedNetwork] = useState("IA");
@@ -374,16 +376,7 @@ function WaveformViewer() {
         )}
 
 
-        {/* Trace Selector */}
-        {waveformData && (
-          <section className="viewer-card trace-panel">
-            <TraceSelector
-              waveformData={waveformData}
-              activeTraces={activeTraces}
-              setActiveTraces={setActiveTraces}
-            />
-          </section>
-        )}
+      
 
 
         {/* Waveform */}
@@ -393,19 +386,68 @@ function WaveformViewer() {
             <h2>Waveform Viewer</h2>
           </div>
 
-          <AmplitudeControl
-            amplitudeScale={amplitudeScale}
-            setAmplitudeScale={setAmplitudeScale}
-            normalize={normalize}
-            setNormalize={setNormalize}
-          />
 
-          <WaveformPlot
-            waveformData={waveformData}
-            activeTraces={activeTraces}
-            amplitudeScale={amplitudeScale}
-            normalize={normalize}
-          />
+          {waveformData && (
+            <div className="waveform-controls-sticky">
+
+              {/* TRACE SELECTOR HEADER */}
+              <button
+                type="button"
+                className="trace-sticky-toggle"
+                onClick={() =>
+                  setIsTraceSelectorOpen(
+                    (current) => !current
+                  )
+                }
+              >
+                <div className="trace-sticky-toggle-left">
+                  <span className="trace-sticky-arrow">
+                    {isTraceSelectorOpen ? "▼" : "▶"}
+                  </span>
+
+                  <span className="trace-sticky-title">
+                    Waveform Traces
+                  </span>
+                </div>
+
+                <span className="trace-sticky-count">
+                  {activeTraces.length} active
+                </span>
+              </button>
+
+
+              {/* TRACE SELECTOR CONTENT */}
+              {isTraceSelectorOpen && (
+                <div className="trace-sticky-content">
+                  <TraceSelector
+                    waveformData={waveformData}
+                    activeTraces={activeTraces}
+                    setActiveTraces={setActiveTraces}
+                  />
+                </div>
+              )}
+
+
+              {/* AMPLITUDE CONTROL */}
+              <div className="sticky-amplitude-section">
+                <AmplitudeControl
+                  amplitudeScale={amplitudeScale}
+                  setAmplitudeScale={setAmplitudeScale}
+                  normalize={normalize}
+                  setNormalize={setNormalize}
+                />
+              </div>
+
+            </div>
+          )}
+                      
+
+            <WaveformPlot
+              waveformData={waveformData}
+              activeTraces={activeTraces}
+              amplitudeScale={amplitudeScale}
+              normalize={normalize}
+            />
 
         </section>
 
