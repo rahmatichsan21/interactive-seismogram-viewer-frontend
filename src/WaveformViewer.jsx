@@ -144,6 +144,7 @@ function WaveformViewer() {
       alert("Select at least one station");
       return;
     }
+    console.log("Loading TRUE");
     setIsWaveformLoading(true);
 
     try {
@@ -215,8 +216,12 @@ function WaveformViewer() {
         "Failed to load waveform:",
         error
       );
+    }finally {
+        console.log("Loading FALSE");
+        setIsWaveformLoading(false);
+
     }
-    setIsWaveformLoading(false);
+
   }
 
 
@@ -392,16 +397,6 @@ function WaveformViewer() {
 
         {/* Waveform */}
         <section className="viewer-card waveform-card">
-          {/* Overlay Loading */}
-            {isWaveformLoading && (
-              <div className="waveform-loading-overlay">
-                <div className="loading-spinner" />
-
-                <h3>Loading waveform...</h3>
-
-                <p>Downloading waveform from BMKG...</p>
-              </div>
-            )}
 
           <div className="waveform-header">
             <h2>Waveform Viewer</h2>
@@ -463,29 +458,49 @@ function WaveformViewer() {
           )}
                       
 
-            {waveformData ? (
-                <WaveformPlot
-                    waveformData={waveformData}
-                    activeTraces={activeTraces}
-                    amplitudeScale={amplitudeScale}
-                    normalize={normalize}
-                />
-            ) : (
-                <div className="waveform-empty-state">
+            <div className="waveform-content">
 
-                    <div className="empty-icon">
-                        📈
-                    </div>
+              {isWaveformLoading && (
+                <div className="waveform-loading-banner">
 
-                    <h3>No waveform loaded</h3>
+                  <div className="loading-spinner"></div>
 
-                    <p>
-                        Select a station and time range,
-                        then click <strong>Load Waveform</strong>.
-                    </p>
+                  <div className="loading-text">
+
+                    <strong>Loading waveform...</strong>
+
+                    <span>Downloading waveform from BMKG</span>
+
+                  </div>
 
                 </div>
-            )}
+              )}
+
+              {waveformData ? (
+                <WaveformPlot
+                  waveformData={waveformData}
+                  activeTraces={activeTraces}
+                  amplitudeScale={amplitudeScale}
+                  normalize={normalize}
+                />
+              ) : (
+                <div className="waveform-empty-state">
+
+                  <div className="empty-icon">
+                    📈
+                  </div>
+
+                  <h3>No waveform loaded</h3>
+
+                  <p>
+                    Select a station and time range,
+                    then click <strong>Load Waveform</strong>.
+                  </p>
+
+                </div>
+              )}
+
+            </div>
 
         </section>
 
