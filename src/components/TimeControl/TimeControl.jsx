@@ -7,6 +7,7 @@ function TimeControl({
   setDuration,
   endTime,
   setEndTime,
+  disabled,
 }) {
   return (
     <div className="time-control">
@@ -24,6 +25,7 @@ function TimeControl({
         <label>Time Range</label>
 
         <select
+          disabled={disabled}
           value={timeMode}
           onChange={(e) => setTimeMode(e.target.value)}
         >

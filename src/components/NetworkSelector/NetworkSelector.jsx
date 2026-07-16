@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { getNetworks } from "../../api/stationApi";
 
-function NetworkSelector({ selectedNetwork, setSelectedNetwork }) {
+function NetworkSelector({
+    selectedNetwork,
+    setSelectedNetwork,
+    disabled,
+})
+{
   const [networks, setNetworks] = useState([]);
 
   useEffect(() => {
@@ -20,15 +25,16 @@ function NetworkSelector({ selectedNetwork, setSelectedNetwork }) {
       <br />
 
       <select
-      value={selectedNetwork}
-      onChange={(e) => setSelectedNetwork(e.target.value)}
-    >
-      {networks.map((network) => (
-        <option key={network} value={network}>
-          {network}
-        </option>
-      ))}
-    </select>
+          disabled={disabled}
+          value={selectedNetwork}
+          onChange={(e) => setSelectedNetwork(e.target.value)}
+        >
+        {networks.map((network) => (
+          <option key={network} value={network}>
+            {network}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

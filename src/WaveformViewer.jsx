@@ -45,6 +45,8 @@ function WaveformViewer() {
   // Waveform
   const [waveformData, setWaveformData] = useState(null);
   const [activeTraces, setActiveTraces] = useState([]);
+  const [isWaveformLoading, setIsWaveformLoading] =
+  useState(false);
 
   // Channels
   const [channelPattern, setChannelPattern] = useState("*");
@@ -142,6 +144,7 @@ function WaveformViewer() {
       alert("Select at least one station");
       return;
     }
+    setIsWaveformLoading(true);
 
     try {
       const waveformResults = await Promise.allSettled(
@@ -213,6 +216,7 @@ function WaveformViewer() {
         error
       );
     }
+    setIsWaveformLoading(false);
   }
 
 
@@ -277,8 +281,9 @@ function WaveformViewer() {
 
                 <div className="field-group network-field">
                   <NetworkSelector
-                    selectedNetwork={selectedNetwork}
-                    setSelectedNetwork={setSelectedNetwork}
+                      selectedNetwork={selectedNetwork}
+                      setSelectedNetwork={setSelectedNetwork}
+                      disabled={isWaveformLoading}
                   />
                 </div>
 
@@ -312,6 +317,7 @@ function WaveformViewer() {
                   <LocationSelector
                     locationPattern={locationPattern}
                     setLocationPattern={setLocationPattern}
+                    disabled={isWaveformLoading}
                   />
                 </div>
 
@@ -353,8 +359,13 @@ function WaveformViewer() {
                   className="load-button"
                   type="button"
                   onClick={handleLoadWaveform}
+                  disabled={isWaveformLoading}
                 >
-                  Load Waveform
+                  {
+                    isWaveformLoading
+                        ? "Loading..."
+                        : "Load Waveform"
+                  }
                 </button>
               </div>
             </div>
@@ -381,6 +392,16 @@ function WaveformViewer() {
 
         {/* Waveform */}
         <section className="viewer-card waveform-card">
+          {/* Overlay Loading */}
+            {isWaveformLoading && (
+              <div className="waveform-loading-overlay">
+                <div className="loading-spinner" />
+
+                <h3>Loading waveform...</h3>
+
+                <p>Downloading waveform from BMKG...</p>
+              </div>
+            )}
 
           <div className="waveform-header">
             <h2>Waveform Viewer</h2>
@@ -442,12 +463,29 @@ function WaveformViewer() {
           )}
                       
 
-            <WaveformPlot
-              waveformData={waveformData}
-              activeTraces={activeTraces}
-              amplitudeScale={amplitudeScale}
-              normalize={normalize}
-            />
+            {waveformData ? (
+                <WaveformPlot
+                    waveformData={waveformData}
+                    activeTraces={activeTraces}
+                    amplitudeScale={amplitudeScale}
+                    normalize={normalize}
+                />
+            ) : (
+                <div className="waveform-empty-state">
+
+                    <div className="empty-icon">
+                        📈
+                    </div>
+
+                    <h3>No waveform loaded</h3>
+
+                    <p>
+                        Select a station and time range,
+                        then click <strong>Load Waveform</strong>.
+                    </p>
+
+                </div>
+            )}
 
         </section>
 

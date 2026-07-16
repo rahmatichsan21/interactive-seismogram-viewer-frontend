@@ -5,6 +5,7 @@ function StationSelector({
   selectedNetwork,
   selectedStations,
   setSelectedStations,
+  disabled,
 }) {
   const [stations, setStations] = useState([]);
 
@@ -28,6 +29,7 @@ function StationSelector({
       <br />
 
       <select
+        disabled={disabled}
         value={selectedStations[0] || ""}
         onChange={handleChange}
       >

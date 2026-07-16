@@ -474,7 +474,10 @@ body {
 ========================= */
 
 .waveform-card {
-  min-height: 350px;
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
 }
 
 .waveform-header {
@@ -1135,4 +1138,132 @@ body {
   border-top: 1px solid #e2e7ec;
 
   background: #ffffff;
+}
+
+/* =========================
+   WAVEFORM LOADING
+========================= */
+
+.waveform-loading-overlay {
+
+    position: absolute;
+
+    inset: 0;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    align-items: center;
+
+    gap: 18px;
+
+    background: rgba(255, 255, 255, 0.65);
+
+    backdrop-filter: blur(2px);
+
+    z-index: 999;
+
+    border-radius: inherit;
+
+}
+
+.loading-spinner {
+
+    width: 52px;
+
+    height: 52px;
+
+    border: 5px solid #dbe3ee;
+
+    border-top-color: #1d4ed8;
+
+    border-radius: 50%;
+
+    animation: waveform-spin .8s linear infinite;
+
+}
+
+@keyframes waveform-spin {
+
+    from {
+
+        transform: rotate(0deg);
+
+    }
+
+    to {
+
+        transform: rotate(360deg);
+
+    }
+
+}
+
+@keyframes waveform-spin {
+
+    from {
+
+        transform: rotate(0deg);
+
+    }
+
+    to {
+
+        transform: rotate(360deg);
+
+    }
+
+}
+
+/* =========================
+   EMPTY STATE
+========================= */
+
+.waveform-empty-state {
+
+    min-height: 420px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    align-items: center;
+
+    text-align: center;
+
+    gap: 14px;
+
+    color: #526071;
+
+}
+
+.empty-icon {
+
+    font-size: 64px;
+
+}
+
+.waveform-empty-state h3 {
+
+    margin: 0;
+
+    font-size: 24px;
+
+    color: #273548;
+
+}
+
+.waveform-empty-state p {
+
+    margin: 0;
+
+    max-width: 420px;
+
+    line-height: 1.6;
+
 }
