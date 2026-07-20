@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Plot from "react-plotly.js";
 
 function WaveformPlot({
@@ -36,6 +37,16 @@ function WaveformPlot({
       activeTraces.includes(getTraceId(trace))
   );
 
+  const normalizationFactor = waveformData.traces.reduce(
+    (max, trace) => {
+      for (const value of trace.amplitude) {
+        max = Math.max(max, Math.abs(value));
+      }
+      return max;
+    },
+    0
+  );
+
   return (
     <div className="waveform-list">
       {visibleTraces.map((trace, index) => {
@@ -44,24 +55,13 @@ function WaveformPlot({
         const endTime = trace.time[trace.time.length - 1];
         
         let displayAmplitude = trace.amplitude;
-
-        if (normalize) {
-          let maxAbsoluteAmplitude = 0;
-
-          for (const value of trace.amplitude) {
-            const absoluteValue = Math.abs(value);
-
-            if (absoluteValue > maxAbsoluteAmplitude) {
-              maxAbsoluteAmplitude = absoluteValue;
-            }
-          }
-
-          if (maxAbsoluteAmplitude > 0) {
-            displayAmplitude = trace.amplitude.map(
-              (value) => value / maxAbsoluteAmplitude
-            );
-          }
+        
+        if (normalize && normalizationFactor > 0) {
+          displayAmplitude = trace.amplitude.map(
+            (value) => value / normalizationFactor
+          );
         }
+
         // Cari minimum dan maximum amplitude
         // Menggunakan loop agar aman untuk waveform besar
         let minAmplitude = Infinity;
@@ -76,24 +76,30 @@ function WaveformPlot({
             maxAmplitude = value;
           }
         }
-        // Titik tengah amplitude
-        const centerAmplitude =
-          (minAmplitude + maxAmplitude) / 2;
 
-        // Range normal waveform
-        const originalHalfRange =
-          (maxAmplitude - minAmplitude) / 2 || 1;
+        let yAxisRange;
+        if (normalize) {
+          const normalizedHalfRange = 1 / amplitudeScale;
 
-        // Scale > 1 = waveform terlihat lebih tinggi
-        // Scale < 1 = waveform terlihat lebih gepeng
-        const scaledHalfRange =
-          originalHalfRange / amplitudeScale;
+          yAxisRange = [
+            -normalizedHalfRange,
+            normalizedHalfRange ,
+          ];
+        } else {
+          const centerAmplitude =
+            (minAmplitude + maxAmplitude) / 2;
 
-        const yAxisRange = [
-          centerAmplitude - scaledHalfRange,
-          centerAmplitude + scaledHalfRange,
-        ];
+          const originalHalfRange =
+            (maxAmplitude - minAmplitude) / 2 || 1;
 
+          const scaledHalfRange =
+            originalHalfRange / amplitudeScale;
+
+          yAxisRange = [
+            centerAmplitude - scaledHalfRange ,
+            centerAmplitude + scaledHalfRange ,
+          ];
+        }
 
         return (
           <div
@@ -116,105 +122,112 @@ function WaveformPlot({
               </span>
             </div>
 
-            <Plot
-              data={[
-                {
-                  x: trace.time,
-                  y: displayAmplitude,
-                  type: "scatter",
-                  mode: "lines",
-                  name: traceId,
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "stretch",
+                    gap: "10px",
+                    padding: "12px",
+                }}
+            >
+                <div style={{ flex: 1 }}>
+                    <Plot
+                        data={[
+                            {
+                                x: trace.time,
+                                y: displayAmplitude,
+                                type: "scatter",
+                                mode: "lines",
+                                name: traceId,
 
-                  line: {
-                    width: 1,
-                  },
+                                line: {
+                                    width: 1,
+                                },
 
-                  hovertemplate:
-                    `<b>${traceId}</b><br>` +
-                    "Time: %{x}<br>" +
-                    "Amplitude: %{y}<extra></extra>",
-                },
-              ]}
+                                hovertemplate:
+                                    `<b>${traceId}</b><br>` +
+                                    "Time: %{x}<br>" +
+                                    "Amplitude: %{y}<extra></extra>",
+                            },
+                        ]}
 
-              layout={{
-                height: 280,
+                        layout={{
+                            height: 280,
 
-                margin: {
-                  l: 70,
-                  r: 30,
-                  t: 20,
-                  b: 55,
-                },
+                            margin: {
+                                l: 70,
+                                r: 30,
+                                t: 20,
+                                b: 55,
+                            },
 
-                showlegend: false,
+                            showlegend: false,
 
-                // Left drag = Pan
-                dragmode: "pan",
+                            dragmode: "pan",
 
-                // Pertahankan viewport saat React re-render
-                uirevision: traceId,
+                            uirevision: traceId,
 
-                xaxis: {
-                  title: "Time (UTC)",
+                            xaxis: {
+                                title: "Time (UTC)",
 
-                  fixedrange: false,
+                                fixedrange: false,
 
-                  range: [
-                    startTime,
-                    endTime,
-                  ],
+                                range: [
+                                    startTime,
+                                    endTime,
+                                ],
 
-                  minallowed: startTime,
-                  maxallowed: endTime,
+                                minallowed: startTime,
+                                maxallowed: endTime,
 
-                  gridcolor: "#edf0f3",
-                },
+                                gridcolor: "#edf0f3",
+                            },
 
-                yaxis: {
-                  title: "Amplitude",
+                            yaxis: {
+                                title: "Amplitude",
 
-                  range: yAxisRange,
-                  autorange: false,
+                                range: yAxisRange,
 
-                  fixedrange: true,
+                                autorange: false,
 
-                  gridcolor: "#edf0f3",
-                  automargin: true,
-                },
+                                fixedrange: true,
 
-                paper_bgcolor: "#ffffff",
-                plot_bgcolor: "#ffffff",
-              }}
+                                gridcolor: "#edf0f3",
 
-              config={{
-                responsive: true,
+                                automargin: true,
+                            },
 
-                // Scroll = Stretch / Squeeze
-                scrollZoom: true,
+                            paper_bgcolor: "#ffffff",
+                            plot_bgcolor: "#ffffff",
+                        }}
 
-                // Double click = Reset
-                doubleClick: "reset",
+                        config={{
+                            responsive: true,
 
-                displaylogo: false,
+                            scrollZoom: true,
 
-                // Modebar minimal
-                modeBarButtonsToRemove: [
-                  "select2d",
-                  "lasso2d",
-                  "autoScale2d",
-                  "toggleSpikelines",
-                  "hoverClosestCartesian",
-                  "hoverCompareCartesian",
-                ],
+                            doubleClick: "reset",
 
-                // Hilangkan link Plotly
-                showLink: false,
-              }}
+                            displaylogo: false,
 
-              style={{
-                width: "100%",
-              }}
-            />
+                            modeBarButtonsToRemove: [
+                                "select2d",
+                                "lasso2d",
+                                "autoScale2d",
+                                "toggleSpikelines",
+                                "hoverClosestCartesian",
+                                "hoverCompareCartesian",
+                            ],
+
+                            showLink: false,
+                        }}
+
+                        style={{
+                            width: "100%",
+                        }}
+                    />
+                </div>
+            </div>
           </div>
         );
       })}

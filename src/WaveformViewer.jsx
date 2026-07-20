@@ -47,15 +47,13 @@ function WaveformViewer() {
   const [activeTraces, setActiveTraces] = useState([]);
   const [isWaveformLoading, setIsWaveformLoading] =
   useState(false);
+  const [amplitudeScale, setAmplitudeScale] =
+  useState(1);
+  const [normalize, setNormalize] = useState(false);
 
   // Channels
   const [channelPattern, setChannelPattern] = useState("*");
 
-
-  const [amplitudeScale, setAmplitudeScale] =
-  useState(1);
-
-  const [normalize, setNormalize] = useState(false);
   useEffect(() => {
     async function loadStations() {
       try {
