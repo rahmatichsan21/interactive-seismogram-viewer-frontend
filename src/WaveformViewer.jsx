@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";import "./WaveformViewer.css";
+import { useEffect, useState } from "react";
+import "./WaveformViewer.css";
+
 import NetworkSelector from "./components/NetworkSelector/NetworkSelector";
 import LocationSelector from "./components/LocationSelector/LocationSelector";
 import ChannelSelector from "./components/ChannelSelector/ChannelSelector";
@@ -6,11 +8,17 @@ import TimeControl from "./components/TimeControl/TimeControl";
 import AmplitudeControl from "./components/AmplitudeControl/AmplitudeControl";
 import WaveformPlot from "./components/WaveformPlot/WaveformPlot";
 import TraceSelector from "./components/TraceSelector/TraceSelector";
-import StationSelectorModal from "./components/StationSelectorModal";import {
+import StationSelectorModal from "./components/StationSelectorModal";
+import ProcessingPipeline from "./components/ProcessingPipeline/ProcessingPipeline";
+
+import {
   getChannels,
   getWaveform,
+  postProcess,
 } from "./api/waveformApi";
 
+import useOperationStack from "./hooks/useOperationStack";
+import { toProcessPayload } from "./utils/processingPayload";
 
 function WaveformViewer() {
   // Network & Station
@@ -43,16 +51,52 @@ function WaveformViewer() {
 
 
   // Waveform
-  const [waveformData, setWaveformData] = useState(null);
+  const [originalWaveform, setOriginalWaveform] =
+    useState(null);
+  const [processedWaveform, setProcessedWaveform] =
+    useState(null);
+  const [loadedRequest, setLoadedRequest] =
+    useState(null);
+
   const [activeTraces, setActiveTraces] = useState([]);
+
+  const [isProcessing, setIsProcessing] =
+    useState(false);
+
   const [isWaveformLoading, setIsWaveformLoading] =
-  useState(false);
+    useState(false);
+
+  const [lastHistoryAction, setLastHistoryAction] =
+    useState(null);
+
+  const [processingError, setProcessingError] =
+    useState(null);
+
   const [amplitudeScale, setAmplitudeScale] =
-  useState(1);
+    useState(1);
   const [normalize, setNormalize] = useState(false);
 
   // Channels
   const [channelPattern, setChannelPattern] = useState("*");
+
+    const {
+    history,
+    pointer,
+    canUndo,
+    canRedo,
+    addOperation,
+    updateOperation,
+    replaceOperation,
+    undo,
+    redo,
+    reset,
+    getActiveOperations,
+  } = useOperationStack();
+
+  const activeOperations = getActiveOperations();
+
+  const displayWaveform =
+    processedWaveform ?? originalWaveform;
 
   useEffect(() => {
     async function loadStations() {
@@ -69,13 +113,21 @@ function WaveformViewer() {
 
         const data = await response.json();
 
-        const filteredStations = data.filter(
-          (station) =>
-            station.net === selectedNetwork
-        );
+                const filteredStations = [
+          ...new Map(
+            data
+              .filter(
+                (station) =>
+                  station.net === selectedNetwork
+              )
+              .map((station) => [
+                station.kode_stasiun,
+                station,
+              ])
+          ).values(),
+        ];
 
         setStations(filteredStations);
-
         // Reset pilihan station ketika network berubah
         setSelectedStations([]);
       } catch (error) {
@@ -136,14 +188,32 @@ function WaveformViewer() {
     return v;
   }
 
-
-  async function handleLoadWaveform() {
+  function attachTraceIdentity(traces, station) {
+    return traces.map((trace) => ({
+      ...trace,
+      network: trace.network || selectedNetwork,
+      station: trace.station || station,
+      traceId: [
+        trace.network || selectedNetwork,
+        trace.station || station,
+        trace.location || "--",
+        trace.channel,
+      ].join("."),
+    }));
+  }
+  
+    async function handleLoadWaveform() {
     if (selectedStations.length === 0) {
       alert("Select at least one station");
       return;
     }
-    console.log("Loading TRUE");
+
+    const requestEndTime = getFinalEndTime();
+    const normalizedChannel =
+      normalizeChannelPattern(channelPattern);
+
     setIsWaveformLoading(true);
+    setProcessingError(null);
 
     try {
       const waveformResults = await Promise.allSettled(
@@ -152,27 +222,17 @@ function WaveformViewer() {
             network: selectedNetwork,
             station,
             location: locationPattern.trim() || "*",
-            channel: normalizeChannelPattern(channelPattern),
+            channel: normalizedChannel,
             startTime,
             timeMode,
             duration,
             endTime,
           });
 
-          return waveform.traces.map((trace) => ({
-            ...trace,
-
-            // Simpan identitas station pada SETIAP trace
-            network: trace.network || selectedNetwork,
-            station: trace.station || station,
-
-            traceId: [
-              trace.network || selectedNetwork,
-              trace.station || station,
-              trace.location || "--",
-              trace.channel,
-            ].join("."),
-          }));
+          return attachTraceIdentity(
+            waveform.traces,
+            station
+          );
         })
       );
 
@@ -191,37 +251,178 @@ function WaveformViewer() {
         }
       });
 
-      setWaveformWarnings(warnings);
-
-      const allTraces = successfulTraces;
-
       const combinedWaveform = {
-        traces: allTraces,
+        traces: successfulTraces,
       };
 
-      setWaveformData(combinedWaveform);
+      const loadedStations = [
+        ...new Set(
+          successfulTraces
+            .map((trace) => trace.station)
+            .filter(Boolean)
+        ),
+      ];
+
+      setWaveformWarnings(warnings);
+      setOriginalWaveform(combinedWaveform);
+      setProcessedWaveform(null);
+
+      setLoadedRequest({
+        network: selectedNetwork,
+        location: locationPattern.trim() || "*",
+        channel: normalizedChannel,
+        startTime,
+        endTime: requestEndTime,
+        stations: loadedStations,
+      });
 
       setActiveTraces(
-        allTraces.map((trace) => trace.traceId)
+        successfulTraces.map((trace) => trace.traceId)
       );
 
-      console.log(
-        "Multi-station waveform:",
-        combinedWaveform
-      );
+      reset();
     } catch (error) {
       console.error(
         "Failed to load waveform:",
         error
       );
-    }finally {
-        console.log("Loading FALSE");
-        setIsWaveformLoading(false);
-
+    } finally {
+      setIsWaveformLoading(false);
     }
-
   }
 
+
+      async function handleApplyProcessing(
+    operationsToApply = getActiveOperations()
+  ) {
+    if (!originalWaveform || !loadedRequest) {
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessingError(null);
+
+    try {
+      // Tidak ada operasi aktif berarti kembali ke waveform awal.
+      if (operationsToApply.length === 0) {
+        setProcessedWaveform(null);
+
+        setActiveTraces(
+          originalWaveform.traces.map(
+            (trace) => trace.traceId
+          )
+        );
+
+        return;
+      }
+
+      const processingResults = await Promise.allSettled(
+        loadedRequest.stations.map(async (station) => {
+          const payload = toProcessPayload(
+            {
+              ...loadedRequest,
+              station,
+            },
+            operationsToApply
+          );
+
+          const processed = await postProcess(payload);
+
+          return attachTraceIdentity(
+            processed.traces,
+            station
+          );
+        })
+      );
+
+      const processedTraces = [];
+      const errors = [];
+
+      processingResults.forEach((result, index) => {
+        const station = loadedRequest.stations[index];
+
+        if (result.status === "fulfilled") {
+          processedTraces.push(...result.value);
+        } else {
+          errors.push(
+            `${station}: ${result.reason.message}`
+          );
+        }
+      });
+
+      if (processedTraces.length > 0) {
+        setProcessedWaveform({
+          traces: processedTraces,
+        });
+
+        setActiveTraces(
+          processedTraces.map(
+            (trace) => trace.traceId
+          )
+        );
+      }
+
+      if (errors.length > 0) {
+        setProcessingError(errors.join(" | "));
+      }
+    } catch (error) {
+      console.error(
+        "Failed to process waveform:",
+        error
+      );
+
+      setProcessingError(error.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+    function getEnabledOperations(snapshot) {
+    return (snapshot ?? []).filter(
+      (operation) => operation.enabled
+    );
+  }
+
+  function handleUndoAndApply() {
+    if (!canUndo || isProcessing) {
+      return;
+    }
+
+    const targetSnapshot = history[pointer - 1] ?? [];
+
+    setLastHistoryAction("undo");
+    undo();
+
+    void handleApplyProcessing(
+      getEnabledOperations(targetSnapshot)
+    );
+  }
+
+  function handleRedoAndApply() {
+    if (!canRedo || isProcessing) {
+      return;
+    }
+
+    const targetSnapshot = history[pointer + 1] ?? [];
+
+    setLastHistoryAction("redo");
+    redo();
+
+    void handleApplyProcessing(
+      getEnabledOperations(targetSnapshot)
+    );
+  }
+
+  function handleResetAppliedWaveform() {
+    setProcessedWaveform(null);
+
+    if (originalWaveform) {
+      setActiveTraces(
+        originalWaveform.traces.map(
+          (trace) => trace.traceId
+        )
+      );
+    }
+  }
 
   return (
     <div className="viewer-app">
@@ -377,6 +578,37 @@ function WaveformViewer() {
 
         </section>
 
+        {/* Processing Pipeline */}        
+        {originalWaveform && (
+          <ProcessingPipeline
+            operations={history[pointer] ?? []}            
+            canUndo={canUndo}
+            canRedo={canRedo}
+            defaultStartTime={loadedRequest?.startTime}
+            defaultEndTime={loadedRequest?.endTime}
+            waveformStartTime={loadedRequest?.startTime}
+            waveformEndTime={loadedRequest?.endTime}
+            hasWaveform={Boolean(originalWaveform)}
+            isProcessing={isProcessing}
+            addOperation={addOperation}
+            replaceOperation={replaceOperation}
+            updateOperation={updateOperation}
+            onUndo={handleUndoAndApply}
+            onRedo={handleRedoAndApply}
+            lastHistoryAction={lastHistoryAction}
+            reset={reset}
+            onApply={() => handleApplyProcessing()}            
+            onResetAppliedWaveform={
+              handleResetAppliedWaveform
+            }
+          />
+        )}
+
+        {processingError && (
+          <div className="waveform-warning">
+            {processingError}
+          </div>
+        )}
 
         {/* Waveform Warnings */}
         {waveformWarnings.length > 0 && (
@@ -401,7 +633,7 @@ function WaveformViewer() {
           </div>
 
 
-          {waveformData && (
+          {displayWaveform && (
             <div className="waveform-controls-sticky">
 
               {/* TRACE SELECTOR HEADER */}
@@ -434,7 +666,7 @@ function WaveformViewer() {
               {isTraceSelectorOpen && (
                 <div className="trace-sticky-content">
                   <TraceSelector
-                    waveformData={waveformData}
+                    waveformData={displayWaveform}
                     activeTraces={activeTraces}
                     setActiveTraces={setActiveTraces}
                   />
@@ -474,9 +706,9 @@ function WaveformViewer() {
                 </div>
               )}
 
-              {waveformData ? (
+              {displayWaveform ? (
                 <WaveformPlot
-                  waveformData={waveformData}
+                  waveformData={displayWaveform}
                   activeTraces={activeTraces}
                   amplitudeScale={amplitudeScale}
                   normalize={normalize}

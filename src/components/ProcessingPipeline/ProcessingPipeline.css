@@ -1,0 +1,221 @@
+.processing-pipeline {
+  margin-bottom: 18px;
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #e3e7eb;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.processing-pipeline-header,
+.processing-operation-title,
+.processing-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.processing-pipeline-header {
+  margin-bottom: 18px;
+}
+
+.processing-pipeline-header h2 {
+  margin: 0 0 5px;
+  font-size: 18px;
+}
+
+.processing-pipeline-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.processing-add-button,
+.processing-action-bar button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #cfd7e1;
+  border-radius: 7px;
+  background: #ffffff;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.processing-add-button:hover,
+.processing-action-bar button:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.processing-operation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.processing-operation-card {
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+}
+
+.processing-enabled-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.processing-trim-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.processing-trim-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.processing-trim-fields input {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cfd7e1;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.processing-empty-state {
+  padding: 16px;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.processing-action-bar {
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.processing-action-bar button:disabled,
+.processing-add-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.processing-apply-button {
+  border-color: #00a846 !important;
+  background: #00a846 !important;
+  color: #ffffff;
+}
+
+.processing-apply-button:hover:not(:disabled) {
+  background: #008f3c !important;
+}
+
+@media (max-width: 700px) {
+  .processing-pipeline-header,
+  .processing-action-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .processing-trim-fields {
+    grid-template-columns: 1fr;
+  }
+}
+.processing-history-button.is-last-action {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.processing-history-button.is-last-action:hover:not(:disabled) {
+  background: #bfdbfe;
+}
+
+.processing-history-button:disabled {
+  color: #94a3b8;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.processing-date-time-control {
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+}
+
+.processing-date-time-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.processing-date-time-label span:last-child {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.processing-date-time-inputs {
+  display: grid;
+  grid-template-columns: minmax(145px, 1fr) 72px 10px 72px;
+  align-items: end;
+  gap: 8px;
+}
+
+.processing-date-time-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.processing-date-time-inputs input,
+.processing-date-time-inputs select {
+  width: 100%;
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cfd7e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172033;
+  font-size: 14px;
+}
+
+.processing-date-time-inputs input:focus,
+.processing-date-time-inputs select:focus {
+  outline: none;
+  border-color: #526b88;
+  box-shadow: 0 0 0 3px rgba(82, 107, 136, 0.12);
+}
+
+.processing-time-separator {
+  padding-bottom: 10px;
+  color: #475569;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .processing-date-time-inputs {
+    grid-template-columns: 1fr 72px 10px 72px;
+  }
+}

@@ -85,3 +85,25 @@ export async function getWaveform({
     throw waveformError;
   }
 }
+
+export async function postProcess(payload) {
+  try {
+    const response = await axios.post(
+      `${API_URL}/process`,
+      payload
+    );
+
+    return response.data;
+  } catch (error) {
+    const message =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      "Failed to process waveform.";
+
+    const processingError = new Error(message);
+
+    processingError.status = error.response?.status;
+
+    throw processingError;
+  }
+}
