@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+  import { useCallback, useState, useEffect } from "react";
 
 function createOperationId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -38,123 +38,125 @@ function patchOperations(
 }
 
 export default function useOperationStack() {
-  const [history, setHistory] = useState([[]]);
-  const [pointer, setPointer] = useState(0);
+    const [history, setHistory] = useState([[]]);
+    const [pointer, setPointer] = useState(0);
 
-  const currentOperations = history[pointer] ?? [];
+    // Pipeline yang sedang diedit user.
+    const [pipeline, setPipeline] = useState([]);
+
+    useEffect(() => {
+        console.log("Pointer:", pointer);
+        console.log("Pipeline:", pipeline);
+        console.log("History:", history);
+    }, [pipeline, history, pointer]);
 
   // Membuat snapshot baru.
   // Dipakai untuk Add Trim, toggle Enabled,
   // dan perubahan pertama pada satu grup Date/Hour/Minute.
-  const addOperation = useCallback(
-    (operation) => {
-      const newOperation = {
-        id: createOperationId(),
-        enabled: true,
-        ...operation,
-      };
+    const addOperation = useCallback((operation) => {
+        const newOperation = {
+            id: createOperationId(),
+            enabled: true,
+            ...operation,
+        };
 
-      const nextOperations = [
-        ...currentOperations,
-        newOperation,
-      ];
+        // Edit pipeline saja.
+        setPipeline((currentPipeline) => [
+            ...currentPipeline,
+            newOperation,
+        ]);
+    }, []);
 
-      const nextHistory = [
-        ...history.slice(0, pointer + 1),
-        nextOperations,
-      ];
-
-      setHistory(nextHistory);
-      setPointer(nextHistory.length - 1);
-    },
-    [currentOperations, history, pointer]
-  );
-
-  const updateOperation = useCallback(
-    (operationId, patch) => {
-      const nextOperations = patchOperations(
-        currentOperations,
-        operationId,
-        patch
-      );
-
-      if (nextOperations === currentOperations) {
-        return;
-      }
-
-      const nextHistory = [
-        ...history.slice(0, pointer + 1),
-        nextOperations,
-      ];
-
-      setHistory(nextHistory);
-      setPointer(nextHistory.length - 1);
-    },
-    [currentOperations, history, pointer]
-  );
-
-  // Mengganti snapshot terakhir tanpa membuat history baru.
-  // Dipakai ketika pengguna lanjut memilih Hour atau Minute.
-  const replaceOperation = useCallback(
-    (operationId, patch) => {
-      const nextOperations = patchOperations(
-        currentOperations,
-        operationId,
-        patch
-      );
-
-      if (nextOperations === currentOperations) {
-        return;
-      }
-
-      setHistory((currentHistory) =>
-        currentHistory.map((snapshot, index) =>
-          index === pointer
-            ? nextOperations
-            : snapshot
-        )
-      );
-    },
-    [currentOperations, pointer]
-  );
-
-  const undo = useCallback(() => {
-    setPointer((currentPointer) =>
-      Math.max(0, currentPointer - 1)
+    const updateOperation = useCallback(
+        (operationId, patch) => {
+            setPipeline((currentPipeline) =>
+            patchOperations(
+                currentPipeline,
+                operationId,
+                patch
+            )
+            );
+        },
+        []
     );
-  }, []);
 
-  const redo = useCallback(() => {
-    setPointer((currentPointer) =>
-      Math.min(
-        history.length - 1,
-        currentPointer + 1
-      )
-    );
-  }, [history.length]);
+    const commit = useCallback(() => {
+        const snapshot = pipeline.map((operation) => ({
+            ...operation,
+            params: {
+                ...operation.params,
+            },
+        }));
+
+        const nextHistory = [
+            ...history.slice(0, pointer + 1),
+            snapshot,
+        ];
+
+        setHistory(nextHistory);
+        setPointer(nextHistory.length - 1);
+    }, [history, pointer, pipeline]);
+    
+    const undo = useCallback(() => {
+        if (pointer <= 0) {
+            return null;
+        }
+
+        const nextPointer = pointer - 1;
+        const nextPipeline =
+            history[nextPointer] ?? [];
+
+        setPointer(nextPointer);
+        setPipeline(nextPipeline);
+
+        return nextPipeline;
+    }, [pointer, history]);
+
+    const redo = useCallback(() => {
+        if (pointer >= history.length - 1) {
+            return null;
+        }
+
+        const nextPointer = pointer + 1;
+        const nextPipeline =
+            history[nextPointer] ?? [];
+
+        setPointer(nextPointer);
+        setPipeline(nextPipeline);
+
+        return nextPipeline;
+    }, [pointer, history]);
 
   const reset = useCallback(() => {
-    setHistory([[]]);
-    setPointer(0);
-  }, []);
+        setHistory([[]]);
+        setPointer(0);
 
-  const getActiveOperations = useCallback(() => {
-    return currentOperations.filter(
-      (operation) => operation.enabled
-    );
-  }, [currentOperations]);
+        // Kembali ke pipeline kosong.
+        setPipeline([]);
+    }, []);
 
-  return {
-    history,
-    pointer,
-    canUndo: pointer > 0,
-    canRedo: pointer < history.length - 1,
-    addOperation,
-    updateOperation,
-    replaceOperation,
-    undo,
-    redo,
-    reset,
-    getActiveOperations,
-  };
+    const getActiveOperations = useCallback(() => {
+        return pipeline.filter(
+            (operation) => operation.enabled
+        );
+    }, [pipeline]);
+
+    return {
+        history,
+        pointer,
+        pipeline,
+
+        canUndo: pointer > 0,
+        canRedo: pointer < history.length - 1,
+
+        addOperation,
+        updateOperation,
+        commit,
+
+        undo,
+        redo,
+        reset,
+
+        getActiveOperations,
+    };
 }

@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import "./ProcessingPipeline.css";
 
 function getDateTimeParts(dateTime) {
@@ -83,13 +82,8 @@ function DateTimeControls({
   minDateTime,
   maxDateTime,
   disabled,
-  updateSnapshot,
-  replaceSnapshot,
-}) {
-  // Menandai bahwa snapshot baru untuk grup ini
-  // sudah dibuat. Perubahan berikutnya cukup replace.
-  const hasCreatedSnapshot = useRef(false);
-
+  onChange,
+}) {  
   const { date, hour, minute } =
     getDateTimeParts(value);
 
@@ -129,36 +123,14 @@ function DateTimeControls({
       return;
     }
 
-    if (hasCreatedSnapshot.current) {
-      replaceSnapshot(nextDateTime);
-      return;
-    }
+    onChange(nextDateTime);
 
-    updateSnapshot(nextDateTime);
-    hasCreatedSnapshot.current = true;
-  }
 
-  function handleBlur(event) {
-    // Bila focus pindah antar Date, Hour, dan Minute,
-    // edit masih dianggap satu aksi.
-    if (
-      event.relatedTarget &&
-      event.currentTarget.contains(
-        event.relatedTarget
-      )
-    ) {
-      return;
-    }
-
-    // Pengguna keluar dari satu grup Start/End.
-    // Edit berikutnya akan membuat snapshot baru.
-    hasCreatedSnapshot.current = false;
   }
 
   return (
     <div
       className="processing-date-time-control"
-      onBlur={handleBlur}
     >
       <div className="processing-date-time-label">
         <span>{label}</span>
@@ -252,7 +224,6 @@ function ProcessingPipeline({
   isProcessing,
   addOperation,
   updateOperation,
-  replaceOperation,
   onUndo,
   onRedo,
   reset,
@@ -260,9 +231,6 @@ function ProcessingPipeline({
   onResetAppliedWaveform,
   lastHistoryAction,
 }) {
-  const hasActiveOperations = operations.some(
-    (operation) => operation.enabled
-  );
 
   function handleAddTrim() {
     if (!defaultStartTime || !defaultEndTime) {
@@ -353,48 +321,34 @@ function ProcessingPipeline({
 
                 <div className="processing-trim-fields">
                   <DateTimeControls
-                    label="Start time"
-                    value={operation.params.startTime}
-                    minDateTime={waveformStartTime}
-                    maxDateTime={startMaxDateTime}
-                    disabled={isProcessing}
-                    updateSnapshot={(nextStartTime) =>
-                      updateOperation(operation.id, {
-                        params: {
-                          startTime: nextStartTime,
-                        },
-                      })
-                    }
-                    replaceSnapshot={(nextStartTime) =>
-                      replaceOperation(operation.id, {
-                        params: {
-                          startTime: nextStartTime,
-                        },
-                      })
-                    }
-                  />
+                        label="Start time"
+                        value={operation.params.startTime}
+                        minDateTime={waveformStartTime}
+                        maxDateTime={startMaxDateTime}
+                        disabled={isProcessing}
+                        onChange={(nextStartTime) =>
+                            updateOperation(operation.id, {
+                                params: {
+                                    startTime: nextStartTime,
+                                },
+                            })
+                        }
+                    />
 
                   <DateTimeControls
-                    label="End time"
-                    value={operation.params.endTime}
-                    minDateTime={endMinDateTime}
-                    maxDateTime={waveformEndTime}
-                    disabled={isProcessing}
-                    updateSnapshot={(nextEndTime) =>
-                      updateOperation(operation.id, {
-                        params: {
-                          endTime: nextEndTime,
-                        },
-                      })
-                    }
-                    replaceSnapshot={(nextEndTime) =>
-                      replaceOperation(operation.id, {
-                        params: {
-                          endTime: nextEndTime,
-                        },
-                      })
-                    }
-                  />
+                        label="End time"
+                        value={operation.params.endTime}
+                        minDateTime={endMinDateTime}
+                        maxDateTime={waveformEndTime}
+                        disabled={isProcessing}
+                        onChange={(nextEndTime) =>
+                            updateOperation(operation.id, {
+                                params: {
+                                    endTime: nextEndTime,
+                                },
+                            })
+                        }
+                    />
                 </div>
               </div>
             );
@@ -444,7 +398,6 @@ function ProcessingPipeline({
           onClick={onApply}
           disabled={
             !hasWaveform ||
-            !hasActiveOperations ||
             isProcessing
           }
         >

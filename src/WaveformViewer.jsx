@@ -80,20 +80,19 @@ function WaveformViewer() {
   const [channelPattern, setChannelPattern] = useState("*");
 
     const {
-    history,
-    pointer,
-    canUndo,
-    canRedo,
-    addOperation,
-    updateOperation,
-    replaceOperation,
-    undo,
-    redo,
-    reset,
-    getActiveOperations,
-  } = useOperationStack();
-
-  const activeOperations = getActiveOperations();
+      history,
+      pointer,
+      pipeline,
+      canUndo,
+      canRedo,
+      addOperation,
+      updateOperation,
+      commit,
+      undo,
+      redo,
+      reset,
+      getActiveOperations,
+    } = useOperationStack();
 
   const displayWaveform =
     processedWaveform ?? originalWaveform;
@@ -292,124 +291,145 @@ function WaveformViewer() {
   }
 
 
-      async function handleApplyProcessing(
+  async function postAndUpdatePlot(
     operationsToApply = getActiveOperations()
-  ) {
-    if (!originalWaveform || !loadedRequest) {
-      return;
-    }
-
-    setIsProcessing(true);
-    setProcessingError(null);
-
-    try {
-      // Tidak ada operasi aktif berarti kembali ke waveform awal.
-      if (operationsToApply.length === 0) {
-        setProcessedWaveform(null);
-
-        setActiveTraces(
-          originalWaveform.traces.map(
-            (trace) => trace.traceId
-          )
-        );
-
-        return;
-      }
-
-      const processingResults = await Promise.allSettled(
-        loadedRequest.stations.map(async (station) => {
-          const payload = toProcessPayload(
-            {
-              ...loadedRequest,
-              station,
-            },
-            operationsToApply
-          );
-
-          const processed = await postProcess(payload);
-
-          return attachTraceIdentity(
-            processed.traces,
-            station
-          );
-        })
-      );
-
-      const processedTraces = [];
-      const errors = [];
-
-      processingResults.forEach((result, index) => {
-        const station = loadedRequest.stations[index];
-
-        if (result.status === "fulfilled") {
-          processedTraces.push(...result.value);
-        } else {
-          errors.push(
-            `${station}: ${result.reason.message}`
-          );
+    ) {
+        if (!originalWaveform || !loadedRequest) {
+          return false;
         }
-      });
 
-      if (processedTraces.length > 0) {
-        setProcessedWaveform({
-          traces: processedTraces,
-        });
+        setIsProcessing(true);
+        setProcessingError(null);
 
-        setActiveTraces(
-          processedTraces.map(
-            (trace) => trace.traceId
-          )
-        );
-      }
+        try {
+          // Tidak ada operasi aktif berarti kembali ke waveform awal.
+          if (operationsToApply.length === 0) {
+            setProcessedWaveform(null);
 
-      if (errors.length > 0) {
-        setProcessingError(errors.join(" | "));
-      }
-    } catch (error) {
-      console.error(
-        "Failed to process waveform:",
-        error
-      );
+            setActiveTraces(
+              originalWaveform.traces.map(
+                (trace) => trace.traceId
+              )
+            );
 
-      setProcessingError(error.message);
-    } finally {
-      setIsProcessing(false);
+            return true;
+          }
+
+          const processingResults = await Promise.allSettled(
+            loadedRequest.stations.map(async (station) => {
+              const payload = toProcessPayload(
+                {
+                  ...loadedRequest,
+                  station,
+                },
+                operationsToApply
+              );
+
+              const processed = await postProcess(payload);
+
+              return attachTraceIdentity(
+                processed.traces,
+                station
+              );
+            })
+          );
+
+          const processedTraces = [];
+          const errors = [];
+
+          processingResults.forEach((result, index) => {
+            const station = loadedRequest.stations[index];
+
+            if (result.status === "fulfilled") {
+              processedTraces.push(...result.value);
+            } else {
+              errors.push(
+                `${station}: ${result.reason.message}`
+              );
+            }
+          });
+
+          if (processedTraces.length > 0) {
+            setProcessedWaveform({
+              traces: processedTraces,
+            });
+
+            setActiveTraces(
+              processedTraces.map(
+                (trace) => trace.traceId
+              )
+            );
+            return true;
+          }
+
+          if (errors.length > 0) {
+              setProcessingError(errors.join(" | "));
+          }
+
+          return false;
+        } catch (error) {
+          console.error(
+            "Failed to process waveform:",
+            error
+          );
+
+          setProcessingError(error.message);
+          return false;
+        } finally {
+          setIsProcessing(false);
+        }
     }
-  }
     function getEnabledOperations(snapshot) {
     return (snapshot ?? []).filter(
       (operation) => operation.enabled
     );
   }
 
-  function handleUndoAndApply() {
-    if (!canUndo || isProcessing) {
-      return;
-    }
+  async function handleApplyProcessing() {
+    const operationsToApply = getActiveOperations();
 
-    const targetSnapshot = history[pointer - 1] ?? [];
-
-    setLastHistoryAction("undo");
-    undo();
-
-    void handleApplyProcessing(
-      getEnabledOperations(targetSnapshot)
+    const success = await postAndUpdatePlot(
+      operationsToApply
     );
+
+    if (success) {
+      commit();
+    }
+  }
+  function handleUndoAndApply() {
+      if (!canUndo || isProcessing) {
+          return;
+      }
+
+      setLastHistoryAction("undo");
+
+      const targetPipeline = undo();
+
+      if (!targetPipeline) {
+          return;
+      }
+
+      void postAndUpdatePlot(
+          getEnabledOperations(targetPipeline)
+      );
   }
 
   function handleRedoAndApply() {
-    if (!canRedo || isProcessing) {
-      return;
-    }
+      if (!canRedo || isProcessing) {
+          return;
+      }
 
-    const targetSnapshot = history[pointer + 1] ?? [];
+      setLastHistoryAction("redo");
 
-    setLastHistoryAction("redo");
-    redo();
+      const targetPipeline = redo();
 
-    void handleApplyProcessing(
-      getEnabledOperations(targetSnapshot)
-    );
+      if (!targetPipeline) {
+          return;
+      }
+
+      void postAndUpdatePlot(
+          getEnabledOperations(targetPipeline)
+      );
   }
 
   function handleResetAppliedWaveform() {
@@ -581,7 +601,7 @@ function WaveformViewer() {
         {/* Processing Pipeline */}        
         {originalWaveform && (
           <ProcessingPipeline
-            operations={history[pointer] ?? []}            
+            operations={pipeline}           
             canUndo={canUndo}
             canRedo={canRedo}
             defaultStartTime={loadedRequest?.startTime}
@@ -591,13 +611,12 @@ function WaveformViewer() {
             hasWaveform={Boolean(originalWaveform)}
             isProcessing={isProcessing}
             addOperation={addOperation}
-            replaceOperation={replaceOperation}
             updateOperation={updateOperation}
             onUndo={handleUndoAndApply}
             onRedo={handleRedoAndApply}
             lastHistoryAction={lastHistoryAction}
             reset={reset}
-            onApply={() => handleApplyProcessing()}            
+            onApply={handleApplyProcessing}          
             onResetAppliedWaveform={
               handleResetAppliedWaveform
             }
