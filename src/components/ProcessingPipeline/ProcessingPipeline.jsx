@@ -252,7 +252,19 @@ function ProcessingPipeline({
           params: {},
       });
   }
-  function handleReset() {
+
+  function handleAddFilter() {
+    addOperation({
+          type: "filter",
+          params: {
+              filterType: "bandpass",
+              freq: 1,
+              freqMin: 1,
+              freqMax: 10,
+          },
+      });
+  }
+    function handleReset() {
     reset();
     onResetAppliedWaveform();
   }
@@ -285,6 +297,15 @@ function ProcessingPipeline({
             disabled={!hasWaveform || isProcessing}
           >
             Add Normalize
+          </button>
+
+          <button
+              type="button"
+              className="processing-add-button"
+              onClick={handleAddFilter}
+              disabled={!hasWaveform || isProcessing}
+          >
+              Add Filter
           </button>
         </div>
       </div>
@@ -398,7 +419,126 @@ function ProcessingPipeline({
                     </div>
                 );
             }
+            
+            if (operation.type === "filter") {
+              return (
+                  <div
+                      className="processing-operation-card"
+                      key={operation.id}
+                  >
+                      <div className="processing-operation-title">
+                          <strong>{index + 1}. Filter</strong>
 
+                          <label className="processing-enabled-toggle">
+                              <input
+                                  type="checkbox"
+                                  checked={operation.enabled}
+                                  disabled={isProcessing}
+                                  onChange={(event) =>
+                                      updateOperation(operation.id, {
+                                          enabled: event.target.checked,
+                                      })
+                                  }
+                              />
+                              Enabled
+                          </label>
+                      </div>
+
+                      <label>
+                          Filter Type
+
+                          <select
+                              value={operation.params.filterType}
+                              disabled={isProcessing}
+                              onChange={(event) =>
+                                  updateOperation(operation.id, {
+                                      params: {
+                                          filterType: event.target.value,
+                                      },
+                                  })
+                              }
+                          >
+                              <option value="bandpass">Bandpass</option>
+                              <option value="bandstop">Bandstop</option>
+                              <option value="lowpass">Lowpass</option>
+                              <option value="highpass">Highpass</option>
+                          </select>
+                      </label>
+
+                      {(operation.params.filterType ===
+                          "bandpass" ||
+                          operation.params.filterType ===
+                          "bandstop") && (
+                          <>
+                              <label>
+                                  Frequency Min
+
+                                  <input
+                                      type="number"
+                                      step="0.1"
+                                      value={operation.params.freqMin}
+                                      disabled={isProcessing}
+                                      onChange={(event) =>
+                                          updateOperation(operation.id, {
+                                              params: {
+                                                  freqMin: Number(
+                                                      event.target.value
+                                                  ),
+                                              },
+                                          })
+                                      }
+                                  />
+                              </label>
+
+                              <label>
+                                  Frequency Max
+
+                                  <input
+                                      type="number"
+                                      step="0.1"
+                                      value={operation.params.freqMax}
+                                      disabled={isProcessing}
+                                      onChange={(event) =>
+                                          updateOperation(operation.id, {
+                                              params: {
+                                                  freqMax: Number(
+                                                      event.target.value
+                                                  ),
+                                              },
+                                          })
+                                      }
+                                  />
+                              </label>
+                          </>
+                      )}
+
+                      {(operation.params.filterType ===
+                          "lowpass" ||
+                          operation.params.filterType ===
+                          "highpass") && (
+                          <label>
+                              Frequency
+
+                              <input
+                                  type="number"
+                                  step="0.1"
+                                  value={operation.params.freq}
+                                  disabled={isProcessing}
+                                  onChange={(event) =>
+                                      updateOperation(operation.id, {
+                                          params: {
+                                              freq: Number(
+                                                  event.target.value
+                                              ),
+                                          },
+                                      })
+                                  }
+                              />
+                          </label>
+                      )}
+                  </div>
+              );
+            }
             return null;
         })}
         </div>

@@ -7,6 +7,16 @@ function toBackendOperation(operation) {
         end_time: operation.params.endTime,
       };
 
+    case "filter":
+    return {
+        type: "filter",
+        filter_type:
+            operation.params.filterType,
+        freq: operation.params.freq,
+        freqmin: operation.params.freqMin,
+        freqmax: operation.params.freqMax,
+    };
+    
     default:
       throw new Error(
         `Unsupported processing operation: ${operation.type}`
