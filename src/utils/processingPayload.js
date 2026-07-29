@@ -22,8 +22,12 @@ export function toProcessPayload(request, operations) {
     channel: request.channel,
     start_time: request.startTime,
     end_time: request.endTime,
-        operations: operations
-      .filter((operation) => operation.enabled)
+    operations: operations
+      .filter(
+        (operation) =>
+          operation.enabled &&
+          operation.type !== "normalize"
+      )
       .map((operation) => {
         if (operation.type === "trim") {
           validateTrimOperation(operation, request);

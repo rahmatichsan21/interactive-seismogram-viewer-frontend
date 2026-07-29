@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 function AmplitudeControl({
   amplitudeScale,
   setAmplitudeScale,
-  normalize,
-  setNormalize,
 }) {
   const [inputValue, setInputValue] = useState(
     String(amplitudeScale)
@@ -33,23 +31,6 @@ function AmplitudeControl({
   
   return (
     <div className="amplitude-control-compact">
-
-      {/* Normalize */}
-        <label className="checkbox-option">
-          <input
-            type="checkbox"
-            checked={normalize}
-            onChange={(e) =>
-              setNormalize(e.target.checked)
-            }
-          />
-
-          Normalize
-        </label>
-
-      {/* Separator */}
-      <div className="control-separator" />
-
       {/* Amplitude Title */}
       <label
         className="amplitude-compact-title"

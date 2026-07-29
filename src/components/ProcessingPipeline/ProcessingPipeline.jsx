@@ -246,6 +246,12 @@ function ProcessingPipeline({
     });
   }
 
+  function handleAddNormalize() {
+    addOperation({
+          type: "normalize",
+          params: {},
+      });
+  }
   function handleReset() {
     reset();
     onResetAppliedWaveform();
@@ -262,14 +268,25 @@ function ProcessingPipeline({
           </p>
         </div>
 
-        <button
-          type="button"
-          className="processing-add-button"
-          onClick={handleAddTrim}
-          disabled={!hasWaveform || isProcessing}
-        >
-          Add Trim
-        </button>
+        <div className="processing-add-buttons">
+          <button
+            type="button"
+            className="processing-add-button"
+            onClick={handleAddTrim}
+            disabled={!hasWaveform || isProcessing}
+          >
+            Add Trim
+          </button>
+
+          <button
+            type="button"
+            className="processing-add-button"
+            onClick={handleAddNormalize}
+            disabled={!hasWaveform || isProcessing}
+          >
+            Add Normalize
+          </button>
+        </div>
       </div>
 
       {operations.length === 0 ? (
@@ -279,80 +296,111 @@ function ProcessingPipeline({
       ) : (
         <div className="processing-operation-list">
           {operations.map((operation, index) => {
-            if (operation.type !== "trim") {
-              return null;
+
+            if (operation.type === "trim") {
+
+                // Backend membutuhkan end > start.
+                // Maka Start maksimal adalah End - 1 menit.
+                const startMaxDateTime = shiftMinutes(
+                    operation.params.endTime,
+                    -1
+                );
+
+                // End minimal adalah Start + 1 menit.
+                const endMinDateTime = shiftMinutes(
+                    operation.params.startTime,
+                    1
+                );
+
+                return (
+                    <div
+                        className="processing-operation-card"
+                        key={operation.id}
+                    >
+                        <div className="processing-operation-title">
+                            <strong>{index + 1}. Trim</strong>
+
+                            <label className="processing-enabled-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={operation.enabled}
+                                    disabled={isProcessing}
+                                    onChange={(event) =>
+                                        updateOperation(operation.id, {
+                                            enabled: event.target.checked,
+                                        })
+                                    }
+                                />
+                                Enabled
+                            </label>
+                        </div>
+
+                        <div className="processing-trim-fields">
+                            <DateTimeControls
+                                label="Start time"
+                                value={operation.params.startTime}
+                                minDateTime={waveformStartTime}
+                                maxDateTime={startMaxDateTime}
+                                disabled={isProcessing}
+                                onChange={(nextStartTime) =>
+                                    updateOperation(operation.id, {
+                                        params: {
+                                            startTime: nextStartTime,
+                                        },
+                                    })
+                                }
+                            />
+
+                            <DateTimeControls
+                                label="End time"
+                                value={operation.params.endTime}
+                                minDateTime={endMinDateTime}
+                                maxDateTime={waveformEndTime}
+                                disabled={isProcessing}
+                                onChange={(nextEndTime) =>
+                                    updateOperation(operation.id, {
+                                        params: {
+                                            endTime: nextEndTime,
+                                        },
+                                    })
+                                }
+                            />
+                        </div>
+                    </div>
+                );
             }
 
-            // Backend membutuhkan end > start.
-            // Maka Start maksimal adalah End - 1 menit.
-            const startMaxDateTime = shiftMinutes(
-              operation.params.endTime,
-              -1
-            );
+            if (operation.type === "normalize") {
+                return (
+                    <div
+                        className="processing-operation-card"
+                        key={operation.id}
+                    >
+                        <div className="processing-operation-title">
+                            <strong>{index + 1}. Normalize</strong>
 
-            // End minimal adalah Start + 1 menit.
-            const endMinDateTime = shiftMinutes(
-              operation.params.startTime,
-              1
-            );
+                            <label className="processing-enabled-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={operation.enabled}
+                                    disabled={isProcessing}
+                                    onChange={(event) =>
+                                        updateOperation(operation.id, {
+                                            enabled: event.target.checked,
+                                        })
+                                    }
+                                />
+                                Enabled
+                            </label>
+                        </div>
 
-            return (
-              <div
-                className="processing-operation-card"
-                key={operation.id}
-              >
-                <div className="processing-operation-title">
-                  <strong>{index + 1}. Trim</strong>
+                        <p>Normalize (Common Y-axis)</p>
+                    </div>
+                );
+            }
 
-                  <label className="processing-enabled-toggle">
-                    <input
-                      type="checkbox"
-                      checked={operation.enabled}
-                      disabled={isProcessing}
-                      onChange={(event) =>
-                        updateOperation(operation.id, {
-                          enabled: event.target.checked,
-                        })
-                      }
-                    />
-                    Enabled
-                  </label>
-                </div>
-
-                <div className="processing-trim-fields">
-                  <DateTimeControls
-                        label="Start time"
-                        value={operation.params.startTime}
-                        minDateTime={waveformStartTime}
-                        maxDateTime={startMaxDateTime}
-                        disabled={isProcessing}
-                        onChange={(nextStartTime) =>
-                            updateOperation(operation.id, {
-                                params: {
-                                    startTime: nextStartTime,
-                                },
-                            })
-                        }
-                    />
-
-                  <DateTimeControls
-                        label="End time"
-                        value={operation.params.endTime}
-                        minDateTime={endMinDateTime}
-                        maxDateTime={waveformEndTime}
-                        disabled={isProcessing}
-                        onChange={(nextEndTime) =>
-                            updateOperation(operation.id, {
-                                params: {
-                                    endTime: nextEndTime,
-                                },
-                            })
-                        }
-                    />
-                </div>
-              </div>
-            );
-          })}
+            return null;
+        })}
         </div>
       )}
 

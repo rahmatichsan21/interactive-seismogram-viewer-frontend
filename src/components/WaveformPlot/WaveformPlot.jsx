@@ -5,7 +5,7 @@ function WaveformPlot({
   waveformData,
   activeTraces,
   amplitudeScale = 1,
-  normalize = false,
+  normalizeEnabled = false,
 }) {
   if (!waveformData) {
     return <div>No waveform loaded.</div>;
@@ -37,15 +37,42 @@ function WaveformPlot({
       activeTraces.includes(getTraceId(trace))
   );
 
-  const normalizationFactor = waveformData.traces.reduce(
-    (max, trace) => {
-      for (const value of trace.amplitude) {
-        max = Math.max(max, Math.abs(value));
+  const commonScale = (() => {
+    if (!normalizeEnabled || visibleTraces.length === 0) {
+      return null;
+    }
+
+    let globalMin = Infinity;
+    let globalMax = -Infinity;
+
+    visibleTraces.forEach((trace) => {
+      if (!trace.amplitude.length) {
+        return;
       }
-      return max;
-    },
-    0
-  );
+
+      for (const value of trace.amplitude) {
+        if (value < globalMin) {
+          globalMin = value;
+        }
+
+        if (value > globalMax) {
+          globalMax = value;
+        }
+      }
+    });
+
+    if (
+      globalMin === Infinity ||
+      globalMax === -Infinity
+    ) {
+      return null;
+    }
+
+    return {
+      min: globalMin,
+      max: globalMax,
+    };
+  })();
 
   return (
     <div className="waveform-list">
@@ -53,14 +80,7 @@ function WaveformPlot({
         const traceId = getTraceId(trace);
         const startTime = trace.time[0];
         const endTime = trace.time[trace.time.length - 1];
-        
-        let displayAmplitude = trace.amplitude;
-        
-        if (normalize && normalizationFactor > 0) {
-          displayAmplitude = trace.amplitude.map(
-            (value) => value / normalizationFactor
-          );
-        }
+        const displayAmplitude = trace.amplitude;
 
         // Cari minimum dan maximum amplitude
         // Menggunakan loop agar aman untuk waveform besar
@@ -78,14 +98,25 @@ function WaveformPlot({
         }
 
         let yAxisRange;
-        if (normalize) {
-          const normalizedHalfRange = 1 / amplitudeScale;
+
+        if (normalizeEnabled && commonScale) {
+
+          const centerAmplitude =
+            (commonScale.min + commonScale.max) / 2;
+
+          const originalHalfRange =
+            (commonScale.max - commonScale.min) / 2 || 1;
+
+          const scaledHalfRange =
+            originalHalfRange / amplitudeScale;
 
           yAxisRange = [
-            -normalizedHalfRange,
-            normalizedHalfRange ,
+            centerAmplitude - scaledHalfRange,
+            centerAmplitude + scaledHalfRange,
           ];
+
         } else {
+
           const centerAmplitude =
             (minAmplitude + maxAmplitude) / 2;
 
@@ -96,9 +127,10 @@ function WaveformPlot({
             originalHalfRange / amplitudeScale;
 
           yAxisRange = [
-            centerAmplitude - scaledHalfRange ,
-            centerAmplitude + scaledHalfRange ,
+            centerAmplitude - scaledHalfRange,
+            centerAmplitude + scaledHalfRange,
           ];
+
         }
 
         return (

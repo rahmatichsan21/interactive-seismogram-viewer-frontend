@@ -74,7 +74,6 @@ function WaveformViewer() {
 
   const [amplitudeScale, setAmplitudeScale] =
     useState(1);
-  const [normalize, setNormalize] = useState(false);
 
   // Channels
   const [channelPattern, setChannelPattern] = useState("*");
@@ -97,6 +96,11 @@ function WaveformViewer() {
   const displayWaveform =
     processedWaveform ?? originalWaveform;
 
+  const normalizeEnabled = pipeline.some(
+    (operation) =>
+      operation.enabled &&
+      operation.type === "normalize"
+  );
   useEffect(() => {
     async function loadStations() {
       try {
@@ -698,8 +702,6 @@ function WaveformViewer() {
                 <AmplitudeControl
                   amplitudeScale={amplitudeScale}
                   setAmplitudeScale={setAmplitudeScale}
-                  normalize={normalize}
-                  setNormalize={setNormalize}
                 />
               </div>
 
@@ -730,7 +732,7 @@ function WaveformViewer() {
                   waveformData={displayWaveform}
                   activeTraces={activeTraces}
                   amplitudeScale={amplitudeScale}
-                  normalize={normalize}
+                  normalizeEnabled={normalizeEnabled}
                 />
               ) : (
                 <div className="waveform-empty-state">
