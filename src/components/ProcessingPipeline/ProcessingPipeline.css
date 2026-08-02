@@ -1,4 +1,8 @@
 .processing-pipeline {
+  position: sticky;
+  top: 16px;
+  z-index: 100;
+
   margin-bottom: 18px;
   padding: 22px;
   background: #ffffff;
@@ -90,6 +94,62 @@
   border: 1px solid #cfd7e1;
   border-radius: 6px;
   background: #ffffff;
+}
+
+.processing-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.processing-filter-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.processing-filter-type-field {
+  grid-column: 1 / -1;
+}
+
+.processing-filter-fields input,
+.processing-filter-fields select {
+  width: 100%;
+  height: 40px;
+
+  padding: 0 10px;
+
+  border: 1px solid #cfd7e1;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #172033;
+  font-size: 14px;
+}
+
+.processing-filter-fields input:focus,
+.processing-filter-fields select:focus {
+  outline: none;
+  border-color: #526b88;
+  box-shadow: 0 0 0 3px rgba(82, 107, 136, 0.12);
+}
+
+.processing-filter-checkbox {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 26px;
+}
+
+.processing-filter-checkbox input {
+  width: auto;
+  height: auto;
 }
 
 .processing-empty-state {
@@ -217,5 +277,8 @@
 @media (max-width: 700px) {
   .processing-date-time-inputs {
     grid-template-columns: 1fr 72px 10px 72px;
+  }
+  .processing-filter-fields {
+    grid-template-columns: 1fr;
   }
 }

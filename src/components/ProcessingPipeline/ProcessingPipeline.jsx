@@ -261,6 +261,9 @@ function ProcessingPipeline({
               freq: 1,
               freqMin: 1,
               freqMax: 10,
+
+              corners: 4,
+              zerophase: true,
           },
       });
   }
@@ -356,6 +359,7 @@ function ProcessingPipeline({
                             </label>
                         </div>
 
+                        
                         <div className="processing-trim-fields">
                             <DateTimeControls
                                 label="Start time"
@@ -421,6 +425,14 @@ function ProcessingPipeline({
             }
             
             if (operation.type === "filter") {
+              const isBandType =
+                  operation.params.filterType === "bandpass" ||
+                  operation.params.filterType === "bandstop";
+
+              const isSinglePassType =
+                  operation.params.filterType === "lowpass" ||
+                  operation.params.filterType === "highpass";
+
               return (
                   <div
                       className="processing-operation-card"
@@ -444,90 +456,119 @@ function ProcessingPipeline({
                           </label>
                       </div>
 
-                      <label>
-                          Filter Type
+                      <div className="processing-filter-fields">
+                          <label className="processing-filter-type-field">
+                              Filter Type
 
-                          <select
-                              value={operation.params.filterType}
-                              disabled={isProcessing}
-                              onChange={(event) =>
-                                  updateOperation(operation.id, {
-                                      params: {
-                                          filterType: event.target.value,
-                                      },
-                                  })
-                              }
-                          >
-                              <option value="bandpass">Bandpass</option>
-                              <option value="bandstop">Bandstop</option>
-                              <option value="lowpass">Lowpass</option>
-                              <option value="highpass">Highpass</option>
-                          </select>
-                      </label>
-
-                      {(operation.params.filterType ===
-                          "bandpass" ||
-                          operation.params.filterType ===
-                          "bandstop") && (
-                          <>
-                              <label>
-                                  Frequency Min
-
-                                  <input
-                                      type="number"
-                                      step="0.1"
-                                      value={operation.params.freqMin}
-                                      disabled={isProcessing}
-                                      onChange={(event) =>
-                                          updateOperation(operation.id, {
-                                              params: {
-                                                  freqMin: Number(
-                                                      event.target.value
-                                                  ),
-                                              },
-                                          })
-                                      }
-                                  />
-                              </label>
-
-                              <label>
-                                  Frequency Max
-
-                                  <input
-                                      type="number"
-                                      step="0.1"
-                                      value={operation.params.freqMax}
-                                      disabled={isProcessing}
-                                      onChange={(event) =>
-                                          updateOperation(operation.id, {
-                                              params: {
-                                                  freqMax: Number(
-                                                      event.target.value
-                                                  ),
-                                              },
-                                          })
-                                      }
-                                  />
-                              </label>
-                          </>
-                      )}
-
-                      {(operation.params.filterType ===
-                          "lowpass" ||
-                          operation.params.filterType ===
-                          "highpass") && (
-                          <label>
-                              Frequency
-
-                              <input
-                                  type="number"
-                                  step="0.1"
-                                  value={operation.params.freq}
+                              <select
+                                  value={operation.params.filterType}
                                   disabled={isProcessing}
                                   onChange={(event) =>
                                       updateOperation(operation.id, {
                                           params: {
-                                              freq: Number(
+                                              filterType: event.target.value,
+                                          },
+                                      })
+                                  }
+                              >
+                                  <option value="bandpass">Bandpass</option>
+                                  <option value="bandstop">Bandstop</option>
+                                  <option value="lowpass">Lowpass</option>
+                                  <option value="highpass">Highpass</option>
+                              </select>
+                          </label>
+
+                          {isBandType && (
+                              <>
+                                  <label>
+                                      Frequency Min
+
+                                      <input
+                                          type="number"
+                                          step="0.1"
+                                          value={operation.params.freqMin}
+                                          disabled={isProcessing}
+                                          onFocus={(event) =>
+                                              event.target.select()
+                                          }
+                                          onChange={(event) =>
+                                              updateOperation(operation.id, {
+                                                  params: {
+                                                      freqMin: Number(
+                                                          event.target.value
+                                                      ),
+                                                  },
+                                              })
+                                          }
+                                      />
+                                  </label>
+
+                                  <label>
+                                      Frequency Max
+
+                                      <input
+                                          type="number"
+                                          step="0.1"
+                                          value={operation.params.freqMax}
+                                          disabled={isProcessing}
+                                          onFocus={(event) =>
+                                              event.target.select()
+                                          }
+                                          onChange={(event) =>
+                                              updateOperation(operation.id, {
+                                                  params: {
+                                                      freqMax: Number(
+                                                          event.target.value
+                                                      ),
+                                                  },
+                                              })
+                                          }
+                                      />
+                                  </label>
+                              </>
+                          )}
+
+                          {isSinglePassType && (
+                              <label>
+                                  Frequency
+
+                                  <input
+                                      type="number"
+                                      step="0.1"
+                                      value={operation.params.freq}
+                                      disabled={isProcessing}
+                                      onFocus={(event) =>
+                                          event.target.select()
+                                      }
+                                      onChange={(event) =>
+                                          updateOperation(operation.id, {
+                                              params: {
+                                                  freq: Number(
+                                                      event.target.value
+                                                  ),
+                                              },
+                                          })
+                                      }
+                                  />
+                              </label>
+                          )}
+
+                          <label>
+                              Corners
+
+                              <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  value={operation.params.corners}
+                                  disabled={isProcessing}
+                                  onFocus={(event) =>
+                                      event.target.select()
+                                  }
+                                  onChange={(event) =>
+                                      updateOperation(operation.id, {
+                                          params: {
+                                              corners: Number(
                                                   event.target.value
                                               ),
                                           },
@@ -535,7 +576,24 @@ function ProcessingPipeline({
                                   }
                               />
                           </label>
-                      )}
+
+                          <label className="processing-filter-checkbox">
+                              <input
+                                  type="checkbox"
+                                  checked={operation.params.zerophase}
+                                  disabled={isProcessing}
+                                  onChange={(event) =>
+                                      updateOperation(operation.id, {
+                                          params: {
+                                              zerophase: event.target.checked,
+                                          },
+                                      })
+                                  }
+                              />
+
+                              Zero Phase
+                          </label>
+                      </div>
                   </div>
               );
             }

@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 function TimeControl({
   startTime,
   setStartTime,
@@ -9,6 +11,28 @@ function TimeControl({
   setEndTime,
   disabled,
 }) {
+  const [durationInput, setDurationInput] = useState(
+    String(duration)
+  );
+
+  useEffect(() => {
+    setDurationInput(String(duration));
+  }, [duration]);
+
+  function applyDurationInput() {
+    const value = Number(durationInput);
+
+    if (!Number.isFinite(value)) {
+      setDurationInput(String(duration));
+      return;
+    }
+
+    const clampedValue = Math.max(1, value);
+
+    setDuration(clampedValue);
+    setDurationInput(String(clampedValue));
+  }
+
   return (
     <div className="time-control">
       <div className="time-field time-start">
@@ -41,10 +65,17 @@ function TimeControl({
           <input
             type="number"
             min="1"
-            value={duration}
+            value={durationInput}
             onChange={(e) =>
-              setDuration(Number(e.target.value))
+              setDurationInput(e.target.value)
             }
+            onBlur={applyDurationInput}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                applyDurationInput();
+                event.currentTarget.blur();
+              }
+            }}
           />
         </div>
       ) : (

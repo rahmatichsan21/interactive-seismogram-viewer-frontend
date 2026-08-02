@@ -8,14 +8,17 @@ function toBackendOperation(operation) {
       };
 
     case "filter":
-    return {
-        type: "filter",
-        filter_type:
-            operation.params.filterType,
-        freq: operation.params.freq,
-        freqmin: operation.params.freqMin,
-        freqmax: operation.params.freqMax,
-    };
+      return {
+          type: "filter",
+          filter_type: operation.params.filterType,
+
+          freq: operation.params.freq,
+          freqmin: operation.params.freqMin,
+          freqmax: operation.params.freqMax,
+
+          corners: operation.params.corners,
+          zerophase: operation.params.zerophase,
+      };
     
     default:
       throw new Error(
