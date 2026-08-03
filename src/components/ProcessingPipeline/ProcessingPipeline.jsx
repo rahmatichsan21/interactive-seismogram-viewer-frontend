@@ -426,8 +426,7 @@ function ProcessingPipeline({
             
             if (operation.type === "filter") {
               const isBandType =
-                  operation.params.filterType === "bandpass" ||
-                  operation.params.filterType === "bandstop";
+                  operation.params.filterType === "bandpass"
 
               const isSinglePassType =
                   operation.params.filterType === "lowpass" ||
@@ -472,7 +471,7 @@ function ProcessingPipeline({
                                   }
                               >
                                   <option value="bandpass">Bandpass</option>
-                                  <option value="bandstop">Bandstop</option>
+
                                   <option value="lowpass">Lowpass</option>
                                   <option value="highpass">Highpass</option>
                               </select>

@@ -204,6 +204,66 @@ function WaveformViewer() {
       ].join("."),
     }));
   }
+
+  function getMinNyquist(traces, activeTraceIds) {
+    const activeSamplingRates = (traces ?? [])
+      .filter((trace) =>
+        (activeTraceIds ?? []).includes(trace.traceId)
+      )
+      .map((trace) => trace.sampling_rate)
+      .filter(
+        (rate) => typeof rate === "number" && rate > 0
+      );
+
+    if (activeSamplingRates.length === 0) {
+      return null;
+    }
+
+    return Math.min(...activeSamplingRates) / 2;
+  }
+
+  function validateFilterAgainstNyquist(operations, nyquist) {
+    if (nyquist === null) {
+      return null;
+    }
+
+    for (const operation of operations) {
+      if (operation.type !== "filter") {
+        continue;
+      }
+
+      const { filterType, freq, freqMax } = operation.params;
+
+      if (
+        (filterType === "lowpass" ||
+          filterType === "highpass") &&
+        Number(freq) >= nyquist
+      ) {
+        return (
+          `Filter ${filterType} tidak dapat diterapkan: ` +
+          `frekuensi ${freq} Hz melebihi Nyquist terendah ` +
+          `dari trace yang sedang aktif (${nyquist.toFixed(
+            2
+          )} Hz).`
+        );
+      }
+
+      if (
+        (filterType === "bandpass") &&
+        Number(freqMax) >= nyquist
+      ) {
+        return (
+          `Filter ${filterType} tidak dapat diterapkan: ` +
+          `frekuensi maksimum ${freqMax} Hz melebihi Nyquist ` +
+          `terendah dari trace yang sedang aktif (${nyquist.toFixed(
+            2
+          )} Hz).`
+        );
+      }
+    }
+
+    return null;
+  }
   
     async function handleLoadWaveform() {
     if (selectedStations.length === 0) {
@@ -353,6 +413,10 @@ function WaveformViewer() {
             }
           });
 
+          if (errors.length > 0) {
+              setProcessingError(errors.join(" | "));
+          }
+
           if (processedTraces.length > 0) {
             setProcessedWaveform({
               traces: processedTraces,
@@ -364,10 +428,6 @@ function WaveformViewer() {
               )
             );
             return true;
-          }
-
-          if (errors.length > 0) {
-              setProcessingError(errors.join(" | "));
           }
 
           return false;
@@ -391,6 +451,21 @@ function WaveformViewer() {
 
   async function handleApplyProcessing() {
     const operationsToApply = getActiveOperations();
+
+    const nyquist = getMinNyquist(
+      displayWaveform?.traces ?? [],
+      activeTraces
+    );
+
+    const validationError = validateFilterAgainstNyquist(
+      operationsToApply,
+      nyquist
+    );
+
+    if (validationError) {
+      setProcessingError(validationError);
+      return;
+    }
 
     const success = await postAndUpdatePlot(
       operationsToApply
