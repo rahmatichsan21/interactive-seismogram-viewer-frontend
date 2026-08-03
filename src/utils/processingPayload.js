@@ -8,15 +8,20 @@ function toBackendOperation(operation) {
       };
 
     case "filter":
+      // Konversi ke Number() sengaja dilakukan di sini, tepat
+      // sebelum payload dikirim ke backend, sebagai jaring
+      // pengaman terakhir. Selama diedit di UI, nilai-nilai ini
+      // disimpan sebagai teks mentah lewat NumberField supaya
+      // field boleh kosong / tidak dipaksa jadi 0.
       return {
           type: "filter",
           filter_type: operation.params.filterType,
 
-          freq: operation.params.freq,
-          freqmin: operation.params.freqMin,
-          freqmax: operation.params.freqMax,
+          freq: Number(operation.params.freq),
+          freqmin: Number(operation.params.freqMin),
+          freqmax: Number(operation.params.freqMax),
 
-          corners: operation.params.corners,
+          corners: Number(operation.params.corners),
           zerophase: operation.params.zerophase,
       };
     

@@ -53,6 +53,12 @@ function WaveformViewer() {
   // Waveform
   const [originalWaveform, setOriginalWaveform] =
     useState(null);
+  // processedWaveform = waveform yang sedang ditampilkan setelah
+  // Apply/Undo/Redo terakhir. Isinya union per-station: trace
+  // hasil processing untuk station yang berhasil, dan trace
+  // original untuk station yang gagal (Nyquist invalid / error
+  // backend). null berarti belum ada processing yang diterapkan,
+  // sehingga displayWaveform jatuh balik ke originalWaveform utuh.
   const [processedWaveform, setProcessedWaveform] =
     useState(null);
   const [loadedRequest, setLoadedRequest] =
@@ -69,8 +75,8 @@ function WaveformViewer() {
   const [lastHistoryAction, setLastHistoryAction] =
     useState(null);
 
-  const [processingError, setProcessingError] =
-    useState(null);
+  const [processingErrors, setProcessingErrors] =
+    useState([]);
 
   const [amplitudeScale, setAmplitudeScale] =
     useState(1);
@@ -205,21 +211,25 @@ function WaveformViewer() {
     }));
   }
 
-  function getMinNyquist(traces, activeTraceIds) {
-    const activeSamplingRates = (traces ?? [])
-      .filter((trace) =>
-        (activeTraceIds ?? []).includes(trace.traceId)
+  // Nyquist dihitung per station (bukan global) supaya station
+  // yang punya sampling_rate berbeda tidak saling menjatuhkan.
+  function getStationNyquist(traces, activeTraceIds, station) {
+    const stationSamplingRates = (traces ?? [])
+      .filter(
+        (trace) =>
+          trace.station === station &&
+          (activeTraceIds ?? []).includes(trace.traceId)
       )
       .map((trace) => trace.sampling_rate)
       .filter(
         (rate) => typeof rate === "number" && rate > 0
       );
 
-    if (activeSamplingRates.length === 0) {
+    if (stationSamplingRates.length === 0) {
       return null;
     }
 
-    return Math.min(...activeSamplingRates) / 2;
+    return Math.min(...stationSamplingRates) / 2;
   }
 
   function validateFilterAgainstNyquist(operations, nyquist) {
@@ -276,7 +286,7 @@ function WaveformViewer() {
       normalizeChannelPattern(channelPattern);
 
     setIsWaveformLoading(true);
-    setProcessingError(null);
+    setProcessingErrors([]);
 
     try {
       const waveformResults = await Promise.allSettled(
@@ -363,7 +373,7 @@ function WaveformViewer() {
         }
 
         setIsProcessing(true);
-        setProcessingError(null);
+        setProcessingErrors([]);
 
         try {
           // Tidak ada operasi aktif berarti kembali ke waveform awal.
@@ -381,6 +391,26 @@ function WaveformViewer() {
 
           const processingResults = await Promise.allSettled(
             loadedRequest.stations.map(async (station) => {
+              // Validasi Nyquist khusus untuk station ini.
+              // Kalau gagal, station ini tidak jadi mengirim
+              // POST /process sama sekali, station lain tetap
+              // lanjut diproses secara independen.
+              const stationNyquist = getStationNyquist(
+                displayWaveform?.traces ?? [],
+                activeTraces,
+                station
+              );
+
+              const validationError =
+                validateFilterAgainstNyquist(
+                  operationsToApply,
+                  stationNyquist
+                );
+
+              if (validationError) {
+                throw new Error(validationError);
+              }
+
               const payload = toProcessPayload(
                 {
                   ...loadedRequest,
@@ -400,6 +430,7 @@ function WaveformViewer() {
 
           const processedTraces = [];
           const errors = [];
+          const failedStations = new Set();
 
           processingResults.forEach((result, index) => {
             const station = loadedRequest.stations[index];
@@ -410,20 +441,34 @@ function WaveformViewer() {
               errors.push(
                 `${station}: ${result.reason.message}`
               );
+              failedStations.add(station);
             }
           });
 
           if (errors.length > 0) {
-              setProcessingError(errors.join(" | "));
+              setProcessingErrors(errors);
           }
 
           if (processedTraces.length > 0) {
+            // Station yang gagal validasi/diproses tetap tampil
+            // memakai trace original miliknya sendiri, supaya
+            // plot tidak kehilangan station tersebut. Station
+            // yang berhasil memakai trace hasil processing.
+            const fallbackTraces = originalWaveform.traces.filter(
+              (trace) => failedStations.has(trace.station)
+            );
+
+            const mergedTraces = [
+              ...processedTraces,
+              ...fallbackTraces,
+            ];
+
             setProcessedWaveform({
-              traces: processedTraces,
+              traces: mergedTraces,
             });
 
             setActiveTraces(
-              processedTraces.map(
+              mergedTraces.map(
                 (trace) => trace.traceId
               )
             );
@@ -437,7 +482,7 @@ function WaveformViewer() {
             error
           );
 
-          setProcessingError(error.message);
+          setProcessingErrors([error.message]);
           return false;
         } finally {
           setIsProcessing(false);
@@ -452,21 +497,9 @@ function WaveformViewer() {
   async function handleApplyProcessing() {
     const operationsToApply = getActiveOperations();
 
-    const nyquist = getMinNyquist(
-      displayWaveform?.traces ?? [],
-      activeTraces
-    );
-
-    const validationError = validateFilterAgainstNyquist(
-      operationsToApply,
-      nyquist
-    );
-
-    if (validationError) {
-      setProcessingError(validationError);
-      return;
-    }
-
+    // Validasi Nyquist sekarang dilakukan per station di dalam
+    // postAndUpdatePlot, jadi di sini tidak ada lagi validasi
+    // global yang bisa membatalkan seluruh station sekaligus.
     const success = await postAndUpdatePlot(
       operationsToApply
     );
@@ -702,9 +735,13 @@ function WaveformViewer() {
           />
         )}
 
-        {processingError && (
+        {processingErrors.length > 0 && (
           <div className="waveform-warning">
-            {processingError}
+            {processingErrors.map((error, index) => (
+              <div key={`${error}-${index}`}>
+                {error}
+              </div>
+            ))}
           </div>
         )}
 

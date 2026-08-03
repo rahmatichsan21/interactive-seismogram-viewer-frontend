@@ -1,5 +1,7 @@
 import "./ProcessingPipeline.css";
 
+import NumberField from "../NumberField/NumberField";
+
 function getDateTimeParts(dateTime) {
   const [date = "", time = "00:00"] =
     dateTime.split("T");
@@ -482,20 +484,14 @@ function ProcessingPipeline({
                                   <label>
                                       Frequency Min
 
-                                      <input
-                                          type="number"
+                                      <NumberField
                                           step="0.1"
                                           value={operation.params.freqMin}
                                           disabled={isProcessing}
-                                          onFocus={(event) =>
-                                              event.target.select()
-                                          }
-                                          onChange={(event) =>
+                                          onCommit={(nextValue) =>
                                               updateOperation(operation.id, {
                                                   params: {
-                                                      freqMin: Number(
-                                                          event.target.value
-                                                      ),
+                                                      freqMin: nextValue,
                                                   },
                                               })
                                           }
@@ -505,20 +501,14 @@ function ProcessingPipeline({
                                   <label>
                                       Frequency Max
 
-                                      <input
-                                          type="number"
+                                      <NumberField
                                           step="0.1"
                                           value={operation.params.freqMax}
                                           disabled={isProcessing}
-                                          onFocus={(event) =>
-                                              event.target.select()
-                                          }
-                                          onChange={(event) =>
+                                          onCommit={(nextValue) =>
                                               updateOperation(operation.id, {
                                                   params: {
-                                                      freqMax: Number(
-                                                          event.target.value
-                                                      ),
+                                                      freqMax: nextValue,
                                                   },
                                               })
                                           }
@@ -531,20 +521,14 @@ function ProcessingPipeline({
                               <label>
                                   Frequency
 
-                                  <input
-                                      type="number"
+                                  <NumberField
                                       step="0.1"
                                       value={operation.params.freq}
                                       disabled={isProcessing}
-                                      onFocus={(event) =>
-                                          event.target.select()
-                                      }
-                                      onChange={(event) =>
+                                      onCommit={(nextValue) =>
                                           updateOperation(operation.id, {
                                               params: {
-                                                  freq: Number(
-                                                      event.target.value
-                                                  ),
+                                                  freq: nextValue,
                                               },
                                           })
                                       }
@@ -555,21 +539,15 @@ function ProcessingPipeline({
                           <label>
                               Corners
 
-                              <input
-                                  type="number"
+                              <NumberField
                                   min="1"
                                   step="1"
                                   value={operation.params.corners}
                                   disabled={isProcessing}
-                                  onFocus={(event) =>
-                                      event.target.select()
-                                  }
-                                  onChange={(event) =>
+                                  onCommit={(nextValue) =>
                                       updateOperation(operation.id, {
                                           params: {
-                                              corners: Number(
-                                                  event.target.value
-                                              ),
+                                              corners: nextValue,
                                           },
                                       })
                                   }
