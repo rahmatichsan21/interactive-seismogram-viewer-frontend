@@ -15,6 +15,7 @@ import {
   getChannels,
   getWaveform,
   postProcess,
+  MAX_POINTS,
 } from "./api/waveformApi";
 
 import useOperationStack from "./hooks/useOperationStack";
@@ -300,7 +301,15 @@ function WaveformViewer() {
             timeMode,
             duration,
             endTime,
+            maxPoints: MAX_POINTS,
           });
+
+          // Pelindung defensif: payload kosong (traces hilang /
+          // undefined) jangan sampai masuk ke attachTraceIdentity
+          // yang melakukan .map() - bisa memicu crash render.
+          if (!waveform || !waveform.traces) {
+            return [];
+          }
 
           return attachTraceIdentity(
             waveform.traces,

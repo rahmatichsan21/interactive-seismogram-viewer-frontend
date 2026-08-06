@@ -1,5 +1,23 @@
-import { useState } from "react";
 import Plot from "react-plotly.js";
+
+// Kembalikan batas bawah/atas amplitudo SATU trace. Trace yang
+// di-decimate (Time Bucket min/max) tidak punya field `amplitude`
+// penuh - hanya `amplitude_min`/`amplitude_max` per bucket.
+function getAmplitudeEnvelope(trace) {
+  if (trace.decimated) {
+    return {
+      min: trace.amplitude_min ?? [],
+      max: trace.amplitude_max ?? [],
+    };
+  }
+
+  const amplitude = trace.amplitude ?? [];
+
+  return {
+    min: amplitude,
+    max: amplitude,
+  };
+}
 
 function WaveformPlot({
   waveformData,
@@ -46,15 +64,19 @@ function WaveformPlot({
     let globalMax = -Infinity;
 
     visibleTraces.forEach((trace) => {
-      if (!trace.amplitude.length) {
+      const { min, max } = getAmplitudeEnvelope(trace);
+
+      if (min.length === 0 && max.length === 0) {
         return;
       }
 
-      for (const value of trace.amplitude) {
+      for (const value of min) {
         if (value < globalMin) {
           globalMin = value;
         }
+      }
 
+      for (const value of max) {
         if (value > globalMax) {
           globalMax = value;
         }
@@ -80,22 +102,70 @@ function WaveformPlot({
         const traceId = getTraceId(trace);
         const startTime = trace.time[0];
         const endTime = trace.time[trace.time.length - 1];
-        const displayAmplitude = trace.amplitude;
 
-        // Cari minimum dan maximum amplitude
-        // Menggunakan loop agar aman untuk waveform besar
+        // Cari minimum dan maximum amplitude dari envelope
+        // (amplitude penuh, atau min/max bucket untuk trace yang
+        // di-decimate). Menggunakan loop agar aman untuk
+        // waveform besar.
+        const { min, max } = getAmplitudeEnvelope(trace);
+
         let minAmplitude = Infinity;
         let maxAmplitude = -Infinity;
 
-        for (const value of displayAmplitude) {
+        for (const value of min) {
           if (value < minAmplitude) {
             minAmplitude = value;
           }
+        }
 
+        for (const value of max) {
           if (value > maxAmplitude) {
             maxAmplitude = value;
           }
         }
+
+        const hovertemplate = `<b>${traceId}</b><br>` +
+          "Time: %{x}<br>Amplitude: %{y}<extra></extra>";
+
+        // Trace yang di-decimate dirender sebagai pita min/max:
+        // garis `amplitude_min` dulu, lalu `amplitude_max` di
+        // atasnya dengan fill: 'tonexty' (mengisi ke trace
+        // sebelumnya) sehingga selang antara min dan max tampak
+        // sebagai area terbayang.
+        const plotData = trace.decimated
+          ? [
+              {
+                x: trace.time,
+                y: trace.amplitude_min,
+                type: "scatter",
+                mode: "lines",
+                name: traceId,
+                line: { width: 1 },
+                hovertemplate,
+              },
+              {
+                x: trace.time,
+                y: trace.amplitude_max,
+                type: "scatter",
+                mode: "lines",
+                name: traceId,
+                fill: "tonexty",
+                fillcolor: "rgba(31,119,180,0.15)",
+                line: { width: 1 },
+                hovertemplate,
+              },
+            ]
+          : [
+              {
+                x: trace.time,
+                y: trace.amplitude,
+                type: "scatter",
+                mode: "lines",
+                name: traceId,
+                line: { width: 1 },
+                hovertemplate,
+              },
+            ];
 
         let yAxisRange;
 
@@ -164,24 +234,7 @@ function WaveformPlot({
             >
                 <div style={{ flex: 1 }}>
                     <Plot
-                        data={[
-                            {
-                                x: trace.time,
-                                y: displayAmplitude,
-                                type: "scatter",
-                                mode: "lines",
-                                name: traceId,
-
-                                line: {
-                                    width: 1,
-                                },
-
-                                hovertemplate:
-                                    `<b>${traceId}</b><br>` +
-                                    "Time: %{x}<br>" +
-                                    "Amplitude: %{y}<extra></extra>",
-                            },
-                        ]}
+                        data={plotData}
 
                         layout={{
                             height: 280,
