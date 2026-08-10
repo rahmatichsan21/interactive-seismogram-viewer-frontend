@@ -2,11 +2,14 @@ import axios from "axios";
 
 const API_URL = "http://127.0.0.1:8000";
 
-// Time Bucket decimation target: jumlah maksimum titik per trace
-// yang dikirim backend (min/max per bucket). Dikirim untuk GET
-// /api/waveform dan POST /process - backend menerapkannya hanya
-// sebagai langkah PALING AKHIR setelah pemrosesan.
-export const MAX_POINTS = 2000;
+// Time Bucket decimation target: jumlah bucket untuk
+// temporal-order min/max. Setiap bucket menghasilkan hingga
+// 2 titik output (argmin + argmax), sehingga total output
+// ≈ 2 × MAX_POINTS titik. Dikirim untuk GET /api/waveform
+// dan POST /process — backend menerapkannya hanya sebagai
+// langkah PALING AKHIR setelah pemrosesan.
+// MAX_DISPLAY_POINTS = 150000 → MAX_POINTS = 150000 // 2.
+export const MAX_POINTS = 75000;
 
 export async function getChannels({
   network,

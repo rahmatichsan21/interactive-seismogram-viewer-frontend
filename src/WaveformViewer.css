@@ -1141,6 +1141,52 @@ body {
 }
 
 /* =========================
+   ZOOM CONTROLS
+========================= */
+
+.sticky-zoom-section {
+  display: flex;
+  gap: 10px;
+
+  padding: 10px 16px;
+
+  border-top: 1px solid #e2e7ec;
+
+  background: #ffffff;
+}
+
+.zoom-button {
+  flex: 1;
+
+  padding: 8px 16px;
+
+  background: #f1f5f9;
+
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.zoom-button:hover:not(:disabled) {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.zoom-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================
    WAVEFORM LOADING
 ========================= */
 .waveform-content{

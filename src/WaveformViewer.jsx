@@ -73,6 +73,9 @@ function WaveformViewer() {
   const [isWaveformLoading, setIsWaveformLoading] =
     useState(false);
 
+  const [isZooming, setIsZooming] =
+    useState(false);
+
   const [lastHistoryAction, setLastHistoryAction] =
     useState(null);
 
@@ -276,17 +279,59 @@ function WaveformViewer() {
     return null;
   }
   
-    async function handleLoadWaveform() {
+  function computeZoomRange(startStr, endStr, factor) {
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    const center =
+      (start.getTime() + end.getTime()) / 2;
+
+    const currentHalf =
+      (end.getTime() - start.getTime()) / 2;
+
+    const newHalf = currentHalf * factor;
+
+    const newStart = new Date(center - newHalf);
+    const newEnd = new Date(center + newHalf);
+
+    const pad = (value) =>
+      String(value).padStart(2, "0");
+
+    return {
+      start:
+        `${newStart.getFullYear()}-` +
+        `${pad(newStart.getMonth() + 1)}-` +
+        `${pad(newStart.getDate())}T` +
+        `${pad(newStart.getHours())}:` +
+        `${pad(newStart.getMinutes())}`,
+
+      end:
+        `${newEnd.getFullYear()}-` +
+        `${pad(newEnd.getMonth() + 1)}-` +
+        `${pad(newEnd.getDate())}T` +
+        `${pad(newEnd.getHours())}:` +
+        `${pad(newEnd.getMinutes())}`,
+    };
+  }
+
+  async function loadWaveformWithRange(
+    startStr,
+    endStr,
+    isZoom = false
+  ) {
     if (selectedStations.length === 0) {
       alert("Select at least one station");
       return;
     }
 
-    const requestEndTime = getFinalEndTime();
     const normalizedChannel =
       normalizeChannelPattern(channelPattern);
 
-    setIsWaveformLoading(true);
+    if (isZoom) {
+      setIsZooming(true);
+    } else {
+      setIsWaveformLoading(true);
+    }
+
     setProcessingErrors([]);
 
     try {
@@ -297,16 +342,13 @@ function WaveformViewer() {
             station,
             location: locationPattern.trim() || "*",
             channel: normalizedChannel,
-            startTime,
-            timeMode,
-            duration,
-            endTime,
+            startTime: startStr,
+            timeMode: "range",
+            duration: 0,
+            endTime: endStr,
             maxPoints: MAX_POINTS,
           });
 
-          // Pelindung defensif: payload kosong (traces hilang /
-          // undefined) jangan sampai masuk ke attachTraceIdentity
-          // yang melakukan .map() - bisa memicu crash render.
           if (!waveform || !waveform.traces) {
             return [];
           }
@@ -353,8 +395,8 @@ function WaveformViewer() {
         network: selectedNetwork,
         location: locationPattern.trim() || "*",
         channel: normalizedChannel,
-        startTime,
-        endTime: requestEndTime,
+        startTime: startStr,
+        endTime: endStr,
         stations: loadedStations,
       });
 
@@ -369,8 +411,56 @@ function WaveformViewer() {
         error
       );
     } finally {
-      setIsWaveformLoading(false);
+      if (isZoom) {
+        setIsZooming(false);
+      } else {
+        setIsWaveformLoading(false);
+      }
     }
+  }
+
+  function handleLoadWaveform() {
+    loadWaveformWithRange(
+      startTime,
+      getFinalEndTime(),
+      false
+    );
+  }
+
+  function handleZoomIn() {
+    if (
+      !loadedRequest ||
+      isZooming ||
+      isWaveformLoading
+    ) {
+      return;
+    }
+
+    const range = computeZoomRange(
+      loadedRequest.startTime,
+      loadedRequest.endTime,
+      0.5
+    );
+
+    loadWaveformWithRange(range.start, range.end, true);
+  }
+
+  function handleZoomOut() {
+    if (
+      !loadedRequest ||
+      isZooming ||
+      isWaveformLoading
+    ) {
+      return;
+    }
+
+    const range = computeZoomRange(
+      loadedRequest.startTime,
+      loadedRequest.endTime,
+      2.0
+    );
+
+    loadWaveformWithRange(range.start, range.end, true);
   }
 
 
@@ -824,6 +914,26 @@ function WaveformViewer() {
                   amplitudeScale={amplitudeScale}
                   setAmplitudeScale={setAmplitudeScale}
                 />
+              </div>
+
+              {/* ZOOM CONTROLS */}
+              <div className="sticky-zoom-section">
+                <button
+                  type="button"
+                  className="zoom-button"
+                  onClick={handleZoomIn}
+                  disabled={isZooming || isWaveformLoading}
+                >
+                  {isZooming ? "..." : "Zoom In"}
+                </button>
+                <button
+                  type="button"
+                  className="zoom-button"
+                  onClick={handleZoomOut}
+                  disabled={isZooming || isWaveformLoading}
+                >
+                  {isZooming ? "..." : "Zoom Out"}
+                </button>
               </div>
 
             </div>
