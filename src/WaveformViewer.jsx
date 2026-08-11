@@ -73,8 +73,8 @@ function WaveformViewer() {
   const [isWaveformLoading, setIsWaveformLoading] =
     useState(false);
 
-  const [isZooming, setIsZooming] =
-    useState(false);
+  const [viewportRange, setViewportRange] =
+    useState(null);
 
   const [lastHistoryAction, setLastHistoryAction] =
     useState(null);
@@ -316,7 +316,6 @@ function WaveformViewer() {
   async function loadWaveformWithRange(
     startStr,
     endStr,
-    isZoom = false
   ) {
     if (selectedStations.length === 0) {
       alert("Select at least one station");
@@ -326,12 +325,7 @@ function WaveformViewer() {
     const normalizedChannel =
       normalizeChannelPattern(channelPattern);
 
-    if (isZoom) {
-      setIsZooming(true);
-    } else {
-      setIsWaveformLoading(true);
-    }
-
+    setIsWaveformLoading(true);
     setProcessingErrors([]);
 
     try {
@@ -404,6 +398,8 @@ function WaveformViewer() {
         successfulTraces.map((trace) => trace.traceId)
       );
 
+      setViewportRange({ start: startStr, end: endStr });
+
       reset();
     } catch (error) {
       console.error(
@@ -411,56 +407,41 @@ function WaveformViewer() {
         error
       );
     } finally {
-      if (isZoom) {
-        setIsZooming(false);
-      } else {
-        setIsWaveformLoading(false);
-      }
+      setIsWaveformLoading(false);
     }
   }
 
   function handleLoadWaveform() {
-    loadWaveformWithRange(
-      startTime,
-      getFinalEndTime(),
-      false
-    );
+    const endTime = getFinalEndTime();
+    loadWaveformWithRange(startTime, endTime);
   }
 
   function handleZoomIn() {
-    if (
-      !loadedRequest ||
-      isZooming ||
-      isWaveformLoading
-    ) {
+    if (!loadedRequest) {
       return;
     }
 
     const range = computeZoomRange(
-      loadedRequest.startTime,
-      loadedRequest.endTime,
+      viewportRange?.start ?? loadedRequest.startTime,
+      viewportRange?.end ?? loadedRequest.endTime,
       0.5
     );
 
-    loadWaveformWithRange(range.start, range.end, true);
+    setViewportRange({ start: range.start, end: range.end });
   }
 
   function handleZoomOut() {
-    if (
-      !loadedRequest ||
-      isZooming ||
-      isWaveformLoading
-    ) {
+    if (!loadedRequest) {
       return;
     }
 
     const range = computeZoomRange(
-      loadedRequest.startTime,
-      loadedRequest.endTime,
+      viewportRange?.start ?? loadedRequest.startTime,
+      viewportRange?.end ?? loadedRequest.endTime,
       2.0
     );
 
-    loadWaveformWithRange(range.start, range.end, true);
+    setViewportRange({ start: range.start, end: range.end });
   }
 
 
@@ -809,29 +790,57 @@ function WaveformViewer() {
 
         </section>
 
-        {/* Processing Pipeline */}        
+        {/* Processing Pipeline + Zoom */}        
         {originalWaveform && (
-          <ProcessingPipeline
-            operations={pipeline}           
-            canUndo={canUndo}
-            canRedo={canRedo}
-            defaultStartTime={loadedRequest?.startTime}
-            defaultEndTime={loadedRequest?.endTime}
-            waveformStartTime={loadedRequest?.startTime}
-            waveformEndTime={loadedRequest?.endTime}
-            hasWaveform={Boolean(originalWaveform)}
-            isProcessing={isProcessing}
-            addOperation={addOperation}
-            updateOperation={updateOperation}
-            onUndo={handleUndoAndApply}
-            onRedo={handleRedoAndApply}
-            lastHistoryAction={lastHistoryAction}
-            reset={reset}
-            onApply={handleApplyProcessing}          
-            onResetAppliedWaveform={
-              handleResetAppliedWaveform
-            }
-          />
+          <div className="processing-zoom-sticky">
+            <ProcessingPipeline
+              operations={pipeline}           
+              canUndo={canUndo}
+              canRedo={canRedo}
+              defaultStartTime={loadedRequest?.startTime}
+              defaultEndTime={loadedRequest?.endTime}
+              waveformStartTime={loadedRequest?.startTime}
+              waveformEndTime={loadedRequest?.endTime}
+              hasWaveform={Boolean(originalWaveform)}
+              isProcessing={isProcessing}
+              addOperation={addOperation}
+              updateOperation={updateOperation}
+              onUndo={handleUndoAndApply}
+              onRedo={handleRedoAndApply}
+              lastHistoryAction={lastHistoryAction}
+              reset={reset}
+              onApply={handleApplyProcessing}          
+              onResetAppliedWaveform={
+                handleResetAppliedWaveform
+              }
+            />
+
+            <div className="processing-zoom-divider" />
+
+            <div className="processing-zoom-controls">
+              <label className="processing-zoom-label">
+                Zoom
+              </label>
+
+              <div className="processing-zoom-buttons">
+                <button
+                  type="button"
+                  className="zoom-button"
+                  onClick={handleZoomIn}
+                >
+                  Zoom In
+                </button>
+
+                <button
+                  type="button"
+                  className="zoom-button"
+                  onClick={handleZoomOut}
+                >
+                  Zoom Out
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {processingErrors.length > 0 && (
@@ -916,26 +925,6 @@ function WaveformViewer() {
                 />
               </div>
 
-              {/* ZOOM CONTROLS */}
-              <div className="sticky-zoom-section">
-                <button
-                  type="button"
-                  className="zoom-button"
-                  onClick={handleZoomIn}
-                  disabled={isZooming || isWaveformLoading}
-                >
-                  {isZooming ? "..." : "Zoom In"}
-                </button>
-                <button
-                  type="button"
-                  className="zoom-button"
-                  onClick={handleZoomOut}
-                  disabled={isZooming || isWaveformLoading}
-                >
-                  {isZooming ? "..." : "Zoom Out"}
-                </button>
-              </div>
-
             </div>
           )}
                       
@@ -964,6 +953,7 @@ function WaveformViewer() {
                   activeTraces={activeTraces}
                   amplitudeScale={amplitudeScale}
                   normalizeEnabled={normalizeEnabled}
+                  viewportRange={viewportRange}
                 />
               ) : (
                 <div className="waveform-empty-state">

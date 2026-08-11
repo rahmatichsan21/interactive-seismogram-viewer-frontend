@@ -1,9 +1,4 @@
 .processing-pipeline {
-  position: sticky;
-  top: 16px;
-  z-index: 100;
-
-  margin-bottom: 18px;
   padding: 22px;
   background: #ffffff;
   border: 1px solid #e3e7eb;
