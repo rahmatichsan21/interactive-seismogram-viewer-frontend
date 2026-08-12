@@ -5,7 +5,6 @@ function WaveformPlot({
   activeTraces,
   amplitudeScale = 1,
   normalizeEnabled = false,
-  viewportRange = null,
 }) {
   if (!waveformData) {
     return <div>No waveform loaded.</div>;
@@ -203,9 +202,10 @@ function WaveformPlot({
 
                                 fixedrange: false,
 
-                                range: viewportRange
-                                  ? [viewportRange.start, viewportRange.end]
-                                  : [startTime, endTime],
+                                range: [
+                                    startTime,
+                                    endTime,
+                                ],
 
                                 minallowed: startTime,
                                 maxallowed: endTime,
@@ -234,7 +234,7 @@ function WaveformPlot({
                         config={{
                             responsive: true,
 
-                            scrollZoom: false,
+                            scrollZoom: true,
 
                             doubleClick: "reset",
 

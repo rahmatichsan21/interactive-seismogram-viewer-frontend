@@ -15,7 +15,6 @@ import {
   getChannels,
   getWaveform,
   postProcess,
-  MAX_POINTS,
 } from "./api/waveformApi";
 
 import useOperationStack from "./hooks/useOperationStack";
@@ -72,9 +71,6 @@ function WaveformViewer() {
 
   const [isWaveformLoading, setIsWaveformLoading] =
     useState(false);
-
-  const [viewportRange, setViewportRange] =
-    useState(null);
 
   const [lastHistoryAction, setLastHistoryAction] =
     useState(null);
@@ -279,49 +275,13 @@ function WaveformViewer() {
     return null;
   }
   
-  function computeZoomRange(startStr, endStr, factor) {
-    const start = new Date(startStr);
-    const end = new Date(endStr);
-    const center =
-      (start.getTime() + end.getTime()) / 2;
-
-    const currentHalf =
-      (end.getTime() - start.getTime()) / 2;
-
-    const newHalf = currentHalf * factor;
-
-    const newStart = new Date(center - newHalf);
-    const newEnd = new Date(center + newHalf);
-
-    const pad = (value) =>
-      String(value).padStart(2, "0");
-
-    return {
-      start:
-        `${newStart.getFullYear()}-` +
-        `${pad(newStart.getMonth() + 1)}-` +
-        `${pad(newStart.getDate())}T` +
-        `${pad(newStart.getHours())}:` +
-        `${pad(newStart.getMinutes())}`,
-
-      end:
-        `${newEnd.getFullYear()}-` +
-        `${pad(newEnd.getMonth() + 1)}-` +
-        `${pad(newEnd.getDate())}T` +
-        `${pad(newEnd.getHours())}:` +
-        `${pad(newEnd.getMinutes())}`,
-    };
-  }
-
-  async function loadWaveformWithRange(
-    startStr,
-    endStr,
-  ) {
+    async function handleLoadWaveform() {
     if (selectedStations.length === 0) {
       alert("Select at least one station");
       return;
     }
 
+    const requestEndTime = getFinalEndTime();
     const normalizedChannel =
       normalizeChannelPattern(channelPattern);
 
@@ -336,13 +296,15 @@ function WaveformViewer() {
             station,
             location: locationPattern.trim() || "*",
             channel: normalizedChannel,
-            startTime: startStr,
-            timeMode: "range",
-            duration: 0,
-            endTime: endStr,
-            maxPoints: MAX_POINTS,
+            startTime,
+            timeMode,
+            duration,
+            endTime,
           });
 
+          // Pelindung defensif: payload kosong (traces hilang /
+          // undefined) jangan sampai masuk ke attachTraceIdentity
+          // yang melakukan .map() - bisa memicu crash render.
           if (!waveform || !waveform.traces) {
             return [];
           }
@@ -389,16 +351,14 @@ function WaveformViewer() {
         network: selectedNetwork,
         location: locationPattern.trim() || "*",
         channel: normalizedChannel,
-        startTime: startStr,
-        endTime: endStr,
+        startTime,
+        endTime: requestEndTime,
         stations: loadedStations,
       });
 
       setActiveTraces(
         successfulTraces.map((trace) => trace.traceId)
       );
-
-      setViewportRange({ start: startStr, end: endStr });
 
       reset();
     } catch (error) {
@@ -409,39 +369,6 @@ function WaveformViewer() {
     } finally {
       setIsWaveformLoading(false);
     }
-  }
-
-  function handleLoadWaveform() {
-    const endTime = getFinalEndTime();
-    loadWaveformWithRange(startTime, endTime);
-  }
-
-  function handleZoomIn() {
-    if (!loadedRequest) {
-      return;
-    }
-
-    const range = computeZoomRange(
-      viewportRange?.start ?? loadedRequest.startTime,
-      viewportRange?.end ?? loadedRequest.endTime,
-      0.5
-    );
-
-    setViewportRange({ start: range.start, end: range.end });
-  }
-
-  function handleZoomOut() {
-    if (!loadedRequest) {
-      return;
-    }
-
-    const range = computeZoomRange(
-      viewportRange?.start ?? loadedRequest.startTime,
-      viewportRange?.end ?? loadedRequest.endTime,
-      2.0
-    );
-
-    setViewportRange({ start: range.start, end: range.end });
   }
 
 
@@ -790,57 +717,29 @@ function WaveformViewer() {
 
         </section>
 
-        {/* Processing Pipeline + Zoom */}        
+        {/* Processing Pipeline */}        
         {originalWaveform && (
-          <div className="processing-zoom-sticky">
-            <ProcessingPipeline
-              operations={pipeline}           
-              canUndo={canUndo}
-              canRedo={canRedo}
-              defaultStartTime={loadedRequest?.startTime}
-              defaultEndTime={loadedRequest?.endTime}
-              waveformStartTime={loadedRequest?.startTime}
-              waveformEndTime={loadedRequest?.endTime}
-              hasWaveform={Boolean(originalWaveform)}
-              isProcessing={isProcessing}
-              addOperation={addOperation}
-              updateOperation={updateOperation}
-              onUndo={handleUndoAndApply}
-              onRedo={handleRedoAndApply}
-              lastHistoryAction={lastHistoryAction}
-              reset={reset}
-              onApply={handleApplyProcessing}          
-              onResetAppliedWaveform={
-                handleResetAppliedWaveform
-              }
-            />
-
-            <div className="processing-zoom-divider" />
-
-            <div className="processing-zoom-controls">
-              <label className="processing-zoom-label">
-                Zoom
-              </label>
-
-              <div className="processing-zoom-buttons">
-                <button
-                  type="button"
-                  className="zoom-button"
-                  onClick={handleZoomIn}
-                >
-                  Zoom In
-                </button>
-
-                <button
-                  type="button"
-                  className="zoom-button"
-                  onClick={handleZoomOut}
-                >
-                  Zoom Out
-                </button>
-              </div>
-            </div>
-          </div>
+          <ProcessingPipeline
+            operations={pipeline}           
+            canUndo={canUndo}
+            canRedo={canRedo}
+            defaultStartTime={loadedRequest?.startTime}
+            defaultEndTime={loadedRequest?.endTime}
+            waveformStartTime={loadedRequest?.startTime}
+            waveformEndTime={loadedRequest?.endTime}
+            hasWaveform={Boolean(originalWaveform)}
+            isProcessing={isProcessing}
+            addOperation={addOperation}
+            updateOperation={updateOperation}
+            onUndo={handleUndoAndApply}
+            onRedo={handleRedoAndApply}
+            lastHistoryAction={lastHistoryAction}
+            reset={reset}
+            onApply={handleApplyProcessing}          
+            onResetAppliedWaveform={
+              handleResetAppliedWaveform
+            }
+          />
         )}
 
         {processingErrors.length > 0 && (
@@ -953,7 +852,6 @@ function WaveformViewer() {
                   activeTraces={activeTraces}
                   amplitudeScale={amplitudeScale}
                   normalizeEnabled={normalizeEnabled}
-                  viewportRange={viewportRange}
                 />
               ) : (
                 <div className="waveform-empty-state">
