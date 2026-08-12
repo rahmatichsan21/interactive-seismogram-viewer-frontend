@@ -28,8 +28,9 @@ body {
 
   display: flex;
   align-items: center;
+  justify-content: space-between;
 
-  padding: 0 24px 0 92px;
+  padding: 0 24px;
 
   position: fixed;
   top: 0;
