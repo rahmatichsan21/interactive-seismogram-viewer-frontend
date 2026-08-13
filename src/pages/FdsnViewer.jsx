@@ -81,12 +81,6 @@ export default function FdsnViewer() {
     loadStations();
   }, [selectedNetwork]);
 
-  useEffect(() => {
-    if (isStationModalOpen) {
-      setSelectedStations([]);
-    }
-  }, [isStationModalOpen]);
-
   function getFinalEndTime() {
     if (timeMode === "duration") {
       const [datePart, timePart] = startTime.split("T");
@@ -278,9 +272,9 @@ export default function FdsnViewer() {
           <StationSelectorModal
             stations={stations}
             selectedStations={selectedStations}
-            setSelectedStations={setSelectedStations}
             isOpen={isStationModalOpen}
             onClose={() => setIsStationModalOpen(false)}
+            onApply={setSelectedStations}
           />
         )}
 

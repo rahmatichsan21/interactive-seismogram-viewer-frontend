@@ -3,8 +3,13 @@ import AmplitudeControl from "../components/AmplitudeControl/AmplitudeControl";
 import WaveformPlot from "../components/WaveformPlot/WaveformPlot";
 import TraceSelector from "../components/TraceSelector/TraceSelector";
 import ProcessingPipeline from "../components/ProcessingPipeline/ProcessingPipeline";
+import SpectrogramPanel from "../components/SpectrogramPanel/SpectrogramPanel";
 
-import { postProcess } from "../api/waveformApi";
+import {
+  downloadMiniSeed,
+  getSpectrogram,
+  postProcess,
+} from "../api/waveformApi";
 
 import useOperationStack from "../hooks/useOperationStack";
 import { toProcessPayload } from "../utils/processingPayload";
@@ -76,8 +81,21 @@ export default function WaveformViewerPanel({
   const [lastHistoryAction, setLastHistoryAction] = useState(null);
   const [processingErrors, setProcessingErrors] = useState([]);
   const [amplitudeScale, setAmplitudeScale] = useState(1);
+  const [spectrogramEnabled, setSpectrogramEnabled] =
+    useState(false);
+  const [spectrograms, setSpectrograms] = useState({});
+  const [spectrogramLoading, setSpectrogramLoading] =
+    useState({});
+  const [spectrogramErrors, setSpectrogramErrors] =
+    useState({});
+  const [downloadMenuOpen, setDownloadMenuOpen] =
+    useState(false);
+  const [isDownloading, setIsDownloading] =
+    useState(false);
 
   const {
+    history,
+    pointer,
     pipeline,
     canUndo,
     canRedo,
@@ -97,6 +115,159 @@ export default function WaveformViewerPanel({
       operation.enabled &&
       operation.type === "normalize"
   );
+
+  const visibleTraceIds = activeTraces.length > 0
+    ? activeTraces
+    : (displayWaveform?.traces ?? []).map(
+        (trace) => trace.traceId
+      );
+
+  const visibleTraces = displayWaveform?.traces?.filter(
+    (trace) => visibleTraceIds.includes(trace.traceId)
+  ) ?? [];
+
+  const committedPipeline = history[pointer] ?? [];
+
+  const activeTrim = committedPipeline.find(
+    (operation) =>
+      operation.enabled && operation.type === "trim"
+  );
+
+  const trimStart = activeTrim?.params?.startTime ?? null;
+  const trimEnd = activeTrim?.params?.endTime ?? null;
+
+  async function handleDownloadMiniSeed(channel = null) {
+    console.log("[DOWNLOAD DEBUG] handleDownloadMiniSeed called:", channel);
+    console.log("[DOWNLOAD DEBUG] loadedRequest:", loadedRequest);
+    console.log("[DOWNLOAD DEBUG] visibleTraces:", visibleTraces);
+    if (!loadedRequest || visibleTraces.length === 0) {
+      console.log("[DOWNLOAD DEBUG] early return (no request or traces)");
+      return;
+    }
+
+    const traces = visibleTraces
+      .filter((trace) => !channel || trace.channel === channel)
+      .map((trace) => ({
+        station: trace.station || "*",
+        location: trace.location || "*",
+        channel: trace.channel,
+      }));
+
+    if (traces.length === 0) {
+      return;
+    }
+
+    const stations = [...new Set(
+      traces.map((trace) => trace.station)
+    )];
+    const channels = [...new Set(
+      traces.map((trace) => trace.channel)
+    )];
+    const isLocal = Boolean(loadedRequest.session_id);
+
+    const payload = {
+      source: isLocal ? "local" : "fdsn",
+      network: isLocal ? null : loadedRequest.network,
+      stations: isLocal ? [] : stations,
+      location: loadedRequest.location || "*",
+      channels,
+      traces,
+      start_time: loadedRequest.startTime,
+      end_time: loadedRequest.endTime,
+      trim_start: trimStart,
+      trim_end: trimEnd,
+      session_id: loadedRequest.session_id || null,
+    };
+
+    setIsDownloading(true);
+    setDownloadMenuOpen(false);
+    try {
+      await downloadMiniSeed(payload);
+    } finally {
+      setIsDownloading(false);
+    }
+  }
+
+  const visibleChannelKey = visibleTraces
+    .map((trace) => trace.channel)
+    .join("|");
+
+  useEffect(() => {
+    if (!spectrogramEnabled || !loadedRequest) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    setSpectrograms({});
+    setSpectrogramErrors({});
+    setSpectrogramLoading(
+      Object.fromEntries(
+        visibleTraces.map((trace) => [trace.channel, true])
+      )
+    );
+
+    async function fetchForTrace(trace) {
+      const params = {
+        channel: trace.channel,
+      };
+
+      if (loadedRequest.session_id) {
+        params.session_id = loadedRequest.session_id;
+      } else {
+        params.network = loadedRequest.network || "IA";
+        params.station = loadedRequest.stations?.[0] || "";
+        params.location = loadedRequest.location || "*";
+        params.start_time = loadedRequest.startTime;
+        params.end_time = loadedRequest.endTime;
+      }
+
+      if (trimStart && trimEnd) {
+        params.trim_start = trimStart;
+        params.trim_end = trimEnd;
+      }
+
+      try {
+        const result = await getSpectrogram(params);
+        if (!cancelled) {
+          setSpectrograms((current) => ({
+            ...current,
+            [trace.channel]: result.spectrogram,
+          }));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSpectrogramErrors((current) => ({
+            ...current,
+            [trace.channel]:
+              error.response?.data?.detail ||
+              "Failed to load spectrogram.",
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setSpectrogramLoading((current) => ({
+            ...current,
+            [trace.channel]: false,
+          }));
+        }
+      }
+    }
+
+    visibleTraces.forEach((trace) => {
+      void fetchForTrace(trace);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    spectrogramEnabled,
+    loadedRequest,
+    visibleChannelKey,
+    trimStart,
+    trimEnd,
+  ]);
 
   useEffect(() => {
     if (originalWaveform) {
@@ -380,6 +551,70 @@ export default function WaveformViewerPanel({
                 amplitudeScale={amplitudeScale}
                 setAmplitudeScale={setAmplitudeScale}
               />
+
+              <button
+                type="button"
+                className="spectrogram-toggle"
+                onClick={() => setSpectrogramEnabled(
+                  (enabled) => !enabled
+                )}
+              >
+                {spectrogramEnabled
+                  ? "Hide Spectrogram"
+                  : "Show Spectrogram"}
+              </button>
+
+              <div className="download-menu-wrapper">
+                <button
+                  type="button"
+                  className="spectrogram-toggle"
+                  disabled={isDownloading}
+                  onClick={() => setDownloadMenuOpen(
+                    (open) => !open
+                  )}
+                >
+                  {isDownloading
+                    ? "Preparing MiniSEED..."
+                    : "Download MiniSEED ▾"}
+                </button>
+
+                {downloadMenuOpen && (
+                  <div className="download-menu">
+                    {[
+                      ...new Set(
+                        visibleTraces.map(
+                          (trace) => trace.channel
+                        )
+                      ),
+                    ].map((channel) => (
+                      <button
+                        type="button"
+                        className="download-menu-item"
+                        key={channel}
+                        onClick={() => {
+                          console.log("[DOWNLOAD DEBUG] clicked:", channel);
+                          void handleDownloadMiniSeed(channel);
+                        }}
+                      >
+                        {channel}
+                      </button>
+                    ))}
+
+                    <div className="download-menu-divider" />
+
+                    <button
+                      type="button"
+                      className="download-menu-item"
+                      onClick={() => {
+                        console.log("[DOWNLOAD DEBUG] clicked: All Channels");
+                        void handleDownloadMiniSeed();
+                      }}
+                    >
+                      All Channels
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -396,12 +631,30 @@ export default function WaveformViewerPanel({
           )}
 
           {displayWaveform ? (
-            <WaveformPlot
-              waveformData={displayWaveform}
-              activeTraces={activeTraces}
-              amplitudeScale={amplitudeScale}
-              normalizeEnabled={normalizeEnabled}
-            />
+            <div className="waveform-channel-pairs">
+              {visibleTraces.map((trace) => (
+                <div
+                  className="waveform-channel-pair"
+                  key={trace.traceId}
+                >
+                  <WaveformPlot
+                    waveformData={{ traces: [trace] }}
+                    activeTraces={[trace.traceId]}
+                    amplitudeScale={amplitudeScale}
+                    normalizeEnabled={normalizeEnabled}
+                  />
+
+                  {spectrogramEnabled && (
+                    <SpectrogramPanel
+                      channel={trace.channel}
+                      imageBase64={spectrograms[trace.channel]}
+                      loading={spectrogramLoading[trace.channel] ?? false}
+                      error={spectrogramErrors[trace.channel] ?? null}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="waveform-empty-state">
               <div className="empty-icon">📈</div>
@@ -414,6 +667,7 @@ export default function WaveformViewerPanel({
           )}
         </div>
       </section>
+
     </>
   );
 }

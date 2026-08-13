@@ -1,0 +1,104 @@
+.spectrogram-toggle {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 12px;
+  background: #f1f5f9;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  color: #334155;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.spectrogram-toggle:hover {
+  background: #e2e8f0;
+}
+
+.download-menu-wrapper {
+  margin-top: 10px;
+}
+
+.download-menu-wrapper .spectrogram-toggle {
+  margin-top: 0;
+}
+
+.download-menu {
+  margin-top: 4px;
+  padding: 5px;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.12);
+}
+
+.download-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  color: #334155;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.download-menu-item:hover {
+  background: #f1f5f9;
+}
+
+.download-menu-divider {
+  height: 1px;
+  margin: 4px 0;
+  background: #e2e8f0;
+}
+
+.waveform-channel-pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.waveform-channel-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.spectrogram-card {
+  margin-top: 18px;
+}
+
+.spectrogram-channel-label {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.spectrogram-content {
+  padding: 16px;
+}
+
+.spectrogram-image {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.spectrogram-loading {
+  padding: 32px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.spectrogram-error {
+  padding: 16px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 8px;
+  font-size: 13px;
+}

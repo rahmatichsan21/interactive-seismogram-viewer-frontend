@@ -121,3 +121,33 @@ export async function postProcess(payload) {
     throw processingError;
   }
 }
+
+export async function getSpectrogram(params) {
+  const response = await axios.get(
+    `${API_URL}/api/spectrogram`,
+    { params }
+  );
+  return response.data;
+}
+
+export async function downloadMiniSeed(payload) {
+  const response = await axios.post(
+    `${API_URL}/api/download/miniseed`,
+    payload,
+    { responseType: "blob" }
+  );
+
+  const contentDisposition = response.headers["content-disposition"];
+  const filenameMatch = contentDisposition?.match(
+    /filename="?([^";]+)"?/i
+  );
+  const filename = filenameMatch?.[1] || "waveform.mseed";
+  const url = URL.createObjectURL(response.data);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
