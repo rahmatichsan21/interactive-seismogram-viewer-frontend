@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useRef, useState } from "react";
 
 import FileDropZone from "../components/FileDropZone/FileDropZone";
 import WaveformViewerPanel from "./WaveformViewerPanel";
@@ -22,13 +22,12 @@ export default function LocalFileViewer() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
 
-  useEffect(() => {
-    return () => {
-      if (sessionId) {
-        deleteUploadSession(sessionId).catch(() => {});
-      }
-    };
-  }, [sessionId]);
+  // Menyimpan session yang sedang aktif. Session TIDAK dihapus
+  // saat component unmount karena kedua page (FDSN/Local) tetap
+  // di-mount — berpindah tab bukan alasan menghapus session.
+  // Session hanya dihapus lewat Clear (handleClear) atau saat
+  // dataset diganti dengan upload baru (handleMiniSeedFile).
+  const prevSessionRef = useRef(null);
 
   async function handleMiniSeedFile(file) {
     setMiniSeedFile(file);
@@ -37,6 +36,18 @@ export default function LocalFileViewer() {
 
     try {
       const data = await uploadMiniSeed(file);
+
+      // Ganti dataset: hapus session lama (jika ada) supaya
+      // tidak menumpuk di backend. Ini lifecycle "replace",
+      // bukan delete karena pindah page.
+      if (
+        prevSessionRef.current &&
+        prevSessionRef.current !== data.session_id
+      ) {
+        deleteUploadSession(prevSessionRef.current).catch(() => {});
+      }
+
+      prevSessionRef.current = data.session_id;
       setSessionId(data.session_id);
 
       const waveform = await getUploadWaveform(
@@ -94,6 +105,7 @@ export default function LocalFileViewer() {
     if (sessionId) {
       deleteUploadSession(sessionId).catch(() => {});
     }
+    prevSessionRef.current = null;
     setSessionId(null);
     setMiniSeedFile(null);
     setStationXMLFile(null);

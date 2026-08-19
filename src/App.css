@@ -33,3 +33,9 @@
   color: #ffffff;
   border-color: #1e3a5f;
 }
+
+/* Page non-aktif disembunyikan tapi tetap di-mount,
+   sehingga state per source (FDSN/Local) dipertahankan. */
+.viewer-page-hidden {
+  display: none;
+}

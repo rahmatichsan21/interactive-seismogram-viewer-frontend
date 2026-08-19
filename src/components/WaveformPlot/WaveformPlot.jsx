@@ -255,6 +255,8 @@ function WaveformPlot({
                         style={{
                             width: "100%",
                         }}
+
+                        useResizeHandler
                     />
                 </div>
             </div>

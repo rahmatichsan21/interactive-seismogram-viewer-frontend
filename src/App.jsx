@@ -27,7 +27,30 @@ function App() {
         </nav>
       </header>
 
-      {activePage === "fdsn" ? <FdsnViewer /> : <LocalFileViewer />}
+      {/*
+        Kedua viewer SELALU di-mount supaya state per source
+        (waveform, processing history, pipeline) dipertahankan
+        saat berpindah tab. Hanya yang aktif yang terlihat.
+      */}
+      <div
+        className={
+          activePage === "fdsn"
+            ? "viewer-page"
+            : "viewer-page viewer-page-hidden"
+        }
+      >
+        <FdsnViewer />
+      </div>
+
+      <div
+        className={
+          activePage === "local"
+            ? "viewer-page"
+            : "viewer-page viewer-page-hidden"
+        }
+      >
+        <LocalFileViewer />
+      </div>
     </>
   );
 }

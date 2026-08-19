@@ -270,13 +270,39 @@ export default function WaveformViewerPanel({
     trimEnd,
   ]);
 
+  // Identitas dataset yang sedang dimuat — dipakai untuk
+  // membedakan dataset baru (harus reset processing state) dari
+  // re-load dataset yang sama (state dipertahankan).
+  // Key berbasis parameter request, BUKAN object identity.
+  const waveformKey = loadedRequest
+    ? JSON.stringify({
+        session_id: loadedRequest.session_id ?? null,
+        network: loadedRequest.network ?? null,
+        location: loadedRequest.location ?? null,
+        channel: loadedRequest.channel ?? null,
+        startTime: loadedRequest.startTime ?? null,
+        endTime: loadedRequest.endTime ?? null,
+        stations: loadedRequest.stations ?? null,
+      })
+    : null;
+
   useEffect(() => {
-    if (originalWaveform) {
-      setActiveTraces(
-        originalWaveform.traces.map((trace) => trace.traceId)
-      );
+    if (!originalWaveform || !loadedRequest) {
+      return;
     }
-  }, [originalWaveform]);
+
+    // Dataset BARU → reset semua state yang melekat pada
+    // dataset sebelumnya. UI preference (mis. spectrogramEnabled)
+    // sengaja TIDAK di-reset. Spectrogram di-refetch otomatis
+    // oleh effect spectrogram yang bergantung pada loadedRequest.
+    setProcessedWaveform(null);
+    setActiveTraces(
+      originalWaveform.traces.map((trace) => trace.traceId)
+    );
+    setAmplitudeScale(1);
+    reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [waveformKey]);
 
   async function postAndUpdatePlot(
     operationsToApply = getActiveOperations()
