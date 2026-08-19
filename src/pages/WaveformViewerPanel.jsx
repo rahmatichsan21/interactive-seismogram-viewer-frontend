@@ -101,6 +101,7 @@ export default function WaveformViewerPanel({
     canRedo,
     addOperation,
     updateOperation,
+    removeOperation,
     commit,
     undo,
     redo,
@@ -470,7 +471,7 @@ export default function WaveformViewerPanel({
   }
 
   return (
-    <>
+    <div className="waveform-viewer-layout">
       {originalWaveform && (
         <ProcessingPipeline
           operations={pipeline}
@@ -484,6 +485,7 @@ export default function WaveformViewerPanel({
           isProcessing={isProcessing}
           addOperation={addOperation}
           updateOperation={updateOperation}
+          removeOperation={removeOperation}
           onUndo={handleUndoAndApply}
           onRedo={handleRedoAndApply}
           lastHistoryAction={lastHistoryAction}
@@ -493,23 +495,24 @@ export default function WaveformViewerPanel({
         />
       )}
 
-      {processingErrors.length > 0 && (
-        <div className="waveform-warning">
-          {processingErrors.map((error, index) => (
-            <div key={`${error}-${index}`}>{error}</div>
-          ))}
-        </div>
-      )}
+      <div className="waveform-viewer-main">
+        {processingErrors.length > 0 && (
+          <div className="waveform-warning">
+            {processingErrors.map((error, index) => (
+              <div key={`${error}-${index}`}>{error}</div>
+            ))}
+          </div>
+        )}
 
-      {waveformWarnings.length > 0 && (
-        <div className="waveform-warning">
-          {waveformWarnings.map((warning, index) => (
-            <div key={`${warning}-${index}`}>{warning}</div>
-          ))}
-        </div>
-      )}
+        {waveformWarnings.length > 0 && (
+          <div className="waveform-warning">
+            {waveformWarnings.map((warning, index) => (
+              <div key={`${warning}-${index}`}>{warning}</div>
+            ))}
+          </div>
+        )}
 
-      <section className="viewer-card waveform-card">
+        <section className="viewer-card waveform-card">
         <div className="waveform-header">
           <h2>Waveform Viewer</h2>
         </div>
@@ -667,7 +670,7 @@ export default function WaveformViewerPanel({
           )}
         </div>
       </section>
-
-    </>
+      </div>
+    </div>
   );
 }

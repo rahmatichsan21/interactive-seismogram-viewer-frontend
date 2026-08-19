@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import "./ProcessingPipeline.css";
 
 import NumberField from "../NumberField/NumberField";
@@ -214,6 +216,60 @@ function DateTimeControls({
   );
 }
 
+function OperationTitle({
+  index,
+  name,
+  isExpanded,
+  isProcessing,
+  enabled,
+  onToggleEnabled,
+  onToggleExpanded,
+  onRemove,
+}) {
+  return (
+    <div
+      className="processing-operation-title"
+      onClick={onToggleExpanded}
+    >
+      <span className="processing-operation-chevron">
+        {isExpanded ? "\u25BE" : "\u25B8"}
+      </span>
+
+      <strong>
+        {index + 1}. {name}
+      </strong>
+
+      <label
+        className="processing-enabled-toggle"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={isProcessing}
+          onChange={(event) =>
+            onToggleEnabled(event.target.checked)
+          }
+        />
+        Enabled
+      </label>
+
+      <button
+        type="button"
+        className="processing-remove-button"
+        title="Remove operation"
+        disabled={isProcessing}
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove();
+        }}
+      >
+        {"\u2715"}
+      </button>
+    </div>
+  );
+}
+
 function ProcessingPipeline({
   operations,
   canUndo,
@@ -226,6 +282,7 @@ function ProcessingPipeline({
   isProcessing,
   addOperation,
   updateOperation,
+  removeOperation,
   onUndo,
   onRedo,
   reset,
@@ -233,6 +290,40 @@ function ProcessingPipeline({
   onResetAppliedWaveform,
   lastHistoryAction,
 }) {
+  // State UI murni (collapse/expand) — TIDAK menyentuh
+  // state/logic operation di useOperationStack.
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  // Auto-expand operation yang BARU ditambahkan (bukan saat
+  // undo/redo/commit). Dibandingkan terhadap id sebelumnya.
+  const prevIdsRef = useRef([]);
+
+  useEffect(() => {
+    const currentIds = operations.map((operation) => operation.id);
+    const newIds = currentIds.filter(
+      (id) => !prevIdsRef.current.includes(id)
+    );
+
+    if (newIds.length > 0) {
+      setExpandedIds((current) => new Set([...current, ...newIds]));
+    }
+
+    prevIdsRef.current = currentIds;
+  }, [operations]);
+
+  function toggleExpanded(operationId) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(operationId)) {
+        next.delete(operationId);
+      } else {
+        next.add(operationId);
+      }
+
+      return next;
+    });
+  }
 
   function handleAddTrim() {
     if (!defaultStartTime || !defaultEndTime) {
@@ -277,309 +368,43 @@ function ProcessingPipeline({
   return (
     <section className="processing-pipeline">
       <div className="processing-pipeline-header">
-        <div>
-          <h2>Processing Pipeline</h2>
-          <p>
-            Build operations, then apply them to the
-            loaded waveform.
-          </p>
-        </div>
-
-        <div className="processing-add-buttons">
-          <button
-            type="button"
-            className="processing-add-button"
-            onClick={handleAddTrim}
-            disabled={!hasWaveform || isProcessing}
-          >
-            Add Trim
-          </button>
-
-          <button
-            type="button"
-            className="processing-add-button"
-            onClick={handleAddNormalize}
-            disabled={!hasWaveform || isProcessing}
-          >
-            Add Normalize
-          </button>
-
-          <button
-              type="button"
-              className="processing-add-button"
-              onClick={handleAddFilter}
-              disabled={!hasWaveform || isProcessing}
-          >
-              Add Filter
-          </button>
-        </div>
+        <h2>Processing Pipeline</h2>
+        <p>
+          Build operations, then apply them to the
+          loaded waveform.
+        </p>
       </div>
 
-      {operations.length === 0 ? (
-        <div className="processing-empty-state">
-          No processing operation added yet.
-        </div>
-      ) : (
-        <div className="processing-operation-list">
-          {operations.map((operation, index) => {
+      <div className="processing-add-buttons">
+        <button
+          type="button"
+          className="processing-add-button"
+          onClick={handleAddTrim}
+          disabled={!hasWaveform || isProcessing}
+        >
+          Add Trim
+        </button>
 
-            if (operation.type === "trim") {
+        <button
+          type="button"
+          className="processing-add-button"
+          onClick={handleAddNormalize}
+          disabled={!hasWaveform || isProcessing}
+        >
+          Add Normalize
+        </button>
 
-                // Backend membutuhkan end > start.
-                // Maka Start maksimal adalah End - 1 menit.
-                const startMaxDateTime = shiftMinutes(
-                    operation.params.endTime,
-                    -1
-                );
+        <button
+            type="button"
+            className="processing-add-button"
+            onClick={handleAddFilter}
+            disabled={!hasWaveform || isProcessing}
+        >
+            Add Filter
+        </button>
+      </div>
 
-                // End minimal adalah Start + 1 menit.
-                const endMinDateTime = shiftMinutes(
-                    operation.params.startTime,
-                    1
-                );
-
-                return (
-                    <div
-                        className="processing-operation-card"
-                        key={operation.id}
-                    >
-                        <div className="processing-operation-title">
-                            <strong>{index + 1}. Trim</strong>
-
-                            <label className="processing-enabled-toggle">
-                                <input
-                                    type="checkbox"
-                                    checked={operation.enabled}
-                                    disabled={isProcessing}
-                                    onChange={(event) =>
-                                        updateOperation(operation.id, {
-                                            enabled: event.target.checked,
-                                        })
-                                    }
-                                />
-                                Enabled
-                            </label>
-                        </div>
-
-                        
-                        <div className="processing-trim-fields">
-                            <DateTimeControls
-                                label="Start time"
-                                value={operation.params.startTime}
-                                minDateTime={waveformStartTime}
-                                maxDateTime={startMaxDateTime}
-                                disabled={isProcessing}
-                                onChange={(nextStartTime) =>
-                                    updateOperation(operation.id, {
-                                        params: {
-                                            startTime: nextStartTime,
-                                        },
-                                    })
-                                }
-                            />
-
-                            <DateTimeControls
-                                label="End time"
-                                value={operation.params.endTime}
-                                minDateTime={endMinDateTime}
-                                maxDateTime={waveformEndTime}
-                                disabled={isProcessing}
-                                onChange={(nextEndTime) =>
-                                    updateOperation(operation.id, {
-                                        params: {
-                                            endTime: nextEndTime,
-                                        },
-                                    })
-                                }
-                            />
-                        </div>
-                    </div>
-                );
-            }
-
-            if (operation.type === "normalize") {
-                return (
-                    <div
-                        className="processing-operation-card"
-                        key={operation.id}
-                    >
-                        <div className="processing-operation-title">
-                            <strong>{index + 1}. Normalize</strong>
-
-                            <label className="processing-enabled-toggle">
-                                <input
-                                    type="checkbox"
-                                    checked={operation.enabled}
-                                    disabled={isProcessing}
-                                    onChange={(event) =>
-                                        updateOperation(operation.id, {
-                                            enabled: event.target.checked,
-                                        })
-                                    }
-                                />
-                                Enabled
-                            </label>
-                        </div>
-
-                        <p>Normalize (Common Y-axis)</p>
-                    </div>
-                );
-            }
-            
-            if (operation.type === "filter") {
-              const isBandType =
-                  operation.params.filterType === "bandpass"
-
-              const isSinglePassType =
-                  operation.params.filterType === "lowpass" ||
-                  operation.params.filterType === "highpass";
-
-              return (
-                  <div
-                      className="processing-operation-card"
-                      key={operation.id}
-                  >
-                      <div className="processing-operation-title">
-                          <strong>{index + 1}. Filter</strong>
-
-                          <label className="processing-enabled-toggle">
-                              <input
-                                  type="checkbox"
-                                  checked={operation.enabled}
-                                  disabled={isProcessing}
-                                  onChange={(event) =>
-                                      updateOperation(operation.id, {
-                                          enabled: event.target.checked,
-                                      })
-                                  }
-                              />
-                              Enabled
-                          </label>
-                      </div>
-
-                      <div className="processing-filter-fields">
-                          <label className="processing-filter-type-field">
-                              Filter Type
-
-                              <select
-                                  value={operation.params.filterType}
-                                  disabled={isProcessing}
-                                  onChange={(event) =>
-                                      updateOperation(operation.id, {
-                                          params: {
-                                              filterType: event.target.value,
-                                          },
-                                      })
-                                  }
-                              >
-                                  <option value="bandpass">Bandpass</option>
-
-                                  <option value="lowpass">Lowpass</option>
-                                  <option value="highpass">Highpass</option>
-                              </select>
-                          </label>
-
-                          {isBandType && (
-                              <>
-                                  <label>
-                                      Frequency Min
-
-                                      <NumberField
-                                          step="0.1"
-                                          value={operation.params.freqMin}
-                                          disabled={isProcessing}
-                                          onCommit={(nextValue) =>
-                                              updateOperation(operation.id, {
-                                                  params: {
-                                                      freqMin: nextValue,
-                                                  },
-                                              })
-                                          }
-                                      />
-                                  </label>
-
-                                  <label>
-                                      Frequency Max
-
-                                      <NumberField
-                                          step="0.1"
-                                          value={operation.params.freqMax}
-                                          disabled={isProcessing}
-                                          onCommit={(nextValue) =>
-                                              updateOperation(operation.id, {
-                                                  params: {
-                                                      freqMax: nextValue,
-                                                  },
-                                              })
-                                          }
-                                      />
-                                  </label>
-                              </>
-                          )}
-
-                          {isSinglePassType && (
-                              <label>
-                                  Frequency
-
-                                  <NumberField
-                                      step="0.1"
-                                      value={operation.params.freq}
-                                      disabled={isProcessing}
-                                      onCommit={(nextValue) =>
-                                          updateOperation(operation.id, {
-                                              params: {
-                                                  freq: nextValue,
-                                              },
-                                          })
-                                      }
-                                  />
-                              </label>
-                          )}
-
-                          <label>
-                              Corners
-
-                              <NumberField
-                                  min="1"
-                                  step="1"
-                                  value={operation.params.corners}
-                                  disabled={isProcessing}
-                                  onCommit={(nextValue) =>
-                                      updateOperation(operation.id, {
-                                          params: {
-                                              corners: nextValue,
-                                          },
-                                      })
-                                  }
-                              />
-                          </label>
-
-                          <label className="processing-filter-checkbox">
-                              <input
-                                  type="checkbox"
-                                  checked={operation.params.zerophase}
-                                  disabled={isProcessing}
-                                  onChange={(event) =>
-                                      updateOperation(operation.id, {
-                                          params: {
-                                              zerophase: event.target.checked,
-                                          },
-                                      })
-                                  }
-                              />
-
-                              Zero Phase
-                          </label>
-                      </div>
-                  </div>
-              );
-            }
-            return null;
-        })}
-        </div>
-      )}
-
-      <div className="processing-action-bar">
+      <div className="processing-history-bar">
         <button
           type="button"
           onClick={onUndo}
@@ -605,7 +430,284 @@ function ProcessingPipeline({
         >
           Redo
         </button>
+      </div>
 
+      {operations.length === 0 ? (
+        <div className="processing-empty-state">
+          No processing operation added yet.
+        </div>
+      ) : (
+        <div className="processing-operation-list">
+          {operations.map((operation, index) => {
+            const isExpanded = expandedIds.has(operation.id);
+
+            if (operation.type === "trim") {
+
+                // Backend membutuhkan end > start.
+                // Maka Start maksimal adalah End - 1 menit.
+                const startMaxDateTime = shiftMinutes(
+                    operation.params.endTime,
+                    -1
+                );
+
+                // End minimal adalah Start + 1 menit.
+                const endMinDateTime = shiftMinutes(
+                    operation.params.startTime,
+                    1
+                );
+
+                return (
+                    <div
+                        className="processing-operation-card"
+                        key={operation.id}
+                    >
+                        <OperationTitle
+                            index={index}
+                            name="Trim"
+                            isExpanded={isExpanded}
+                            isProcessing={isProcessing}
+                            enabled={operation.enabled}
+                            onToggleEnabled={(checked) =>
+                                updateOperation(operation.id, {
+                                    enabled: checked,
+                                })
+                            }
+                            onToggleExpanded={() =>
+                                toggleExpanded(operation.id)
+                            }
+                            onRemove={() =>
+                                removeOperation(operation.id)
+                            }
+                        />
+
+                        {isExpanded && (
+                            <div className="processing-trim-fields">
+                                <DateTimeControls
+                                    label="Start time"
+                                    value={operation.params.startTime}
+                                    minDateTime={waveformStartTime}
+                                    maxDateTime={startMaxDateTime}
+                                    disabled={isProcessing}
+                                    onChange={(nextStartTime) =>
+                                        updateOperation(operation.id, {
+                                            params: {
+                                                startTime: nextStartTime,
+                                            },
+                                        })
+                                    }
+                                />
+
+                                <DateTimeControls
+                                    label="End time"
+                                    value={operation.params.endTime}
+                                    minDateTime={endMinDateTime}
+                                    maxDateTime={waveformEndTime}
+                                    disabled={isProcessing}
+                                    onChange={(nextEndTime) =>
+                                        updateOperation(operation.id, {
+                                            params: {
+                                                endTime: nextEndTime,
+                                            },
+                                        })
+                                    }
+                                />
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            if (operation.type === "normalize") {
+                return (
+                    <div
+                        className="processing-operation-card"
+                        key={operation.id}
+                    >
+                        <OperationTitle
+                            index={index}
+                            name="Normalize"
+                            isExpanded={isExpanded}
+                            isProcessing={isProcessing}
+                            enabled={operation.enabled}
+                            onToggleEnabled={(checked) =>
+                                updateOperation(operation.id, {
+                                    enabled: checked,
+                                })
+                            }
+                            onToggleExpanded={() =>
+                                toggleExpanded(operation.id)
+                            }
+                            onRemove={() =>
+                                removeOperation(operation.id)
+                            }
+                        />
+
+                        {isExpanded && (
+                            <p className="processing-normalize-hint">
+                                Normalize (Common Y-axis)
+                            </p>
+                        )}
+                    </div>
+                );
+            }
+            
+            if (operation.type === "filter") {
+              const isBandType =
+                  operation.params.filterType === "bandpass"
+
+              const isSinglePassType =
+                  operation.params.filterType === "lowpass" ||
+                  operation.params.filterType === "highpass";
+
+              return (
+                  <div
+                      className="processing-operation-card"
+                      key={operation.id}
+                  >
+                      <OperationTitle
+                          index={index}
+                          name="Filter"
+                          isExpanded={isExpanded}
+                          isProcessing={isProcessing}
+                          enabled={operation.enabled}
+                          onToggleEnabled={(checked) =>
+                              updateOperation(operation.id, {
+                                  enabled: checked,
+                              })
+                          }
+                          onToggleExpanded={() =>
+                              toggleExpanded(operation.id)
+                          }
+                          onRemove={() =>
+                              removeOperation(operation.id)
+                          }
+                      />
+
+                      {isExpanded && (
+                          <div className="processing-filter-fields">
+                              <label className="processing-filter-type-field">
+                                  Filter Type
+
+                                  <select
+                                      value={operation.params.filterType}
+                                      disabled={isProcessing}
+                                      onChange={(event) =>
+                                          updateOperation(operation.id, {
+                                              params: {
+                                                  filterType: event.target.value,
+                                              },
+                                          })
+                                      }
+                                  >
+                                      <option value="bandpass">Bandpass</option>
+
+                                      <option value="lowpass">Lowpass</option>
+                                      <option value="highpass">Highpass</option>
+                                  </select>
+                              </label>
+
+                              {isBandType && (
+                                  <>
+                                      <label>
+                                          Frequency Min
+
+                                          <NumberField
+                                              step="0.1"
+                                              value={operation.params.freqMin}
+                                              disabled={isProcessing}
+                                              onCommit={(nextValue) =>
+                                                  updateOperation(operation.id, {
+                                                      params: {
+                                                          freqMin: nextValue,
+                                                      },
+                                                  })
+                                              }
+                                          />
+                                      </label>
+
+                                      <label>
+                                          Frequency Max
+
+                                          <NumberField
+                                              step="0.1"
+                                              value={operation.params.freqMax}
+                                              disabled={isProcessing}
+                                              onCommit={(nextValue) =>
+                                                  updateOperation(operation.id, {
+                                                      params: {
+                                                          freqMax: nextValue,
+                                                      },
+                                                  })
+                                              }
+                                          />
+                                      </label>
+                                  </>
+                              )}
+
+                              {isSinglePassType && (
+                                  <label>
+                                      Frequency
+
+                                      <NumberField
+                                          step="0.1"
+                                          value={operation.params.freq}
+                                          disabled={isProcessing}
+                                          onCommit={(nextValue) =>
+                                              updateOperation(operation.id, {
+                                                  params: {
+                                                      freq: nextValue,
+                                                  },
+                                              })
+                                          }
+                                      />
+                                  </label>
+                              )}
+
+                              <label>
+                                  Corners
+
+                                  <NumberField
+                                      min="1"
+                                      step="1"
+                                      value={operation.params.corners}
+                                      disabled={isProcessing}
+                                      onCommit={(nextValue) =>
+                                          updateOperation(operation.id, {
+                                              params: {
+                                                  corners: nextValue,
+                                              },
+                                          })
+                                      }
+                                  />
+                              </label>
+
+                              <label className="processing-filter-checkbox">
+                                  <input
+                                      type="checkbox"
+                                      checked={operation.params.zerophase}
+                                      disabled={isProcessing}
+                                      onChange={(event) =>
+                                          updateOperation(operation.id, {
+                                              params: {
+                                                  zerophase: event.target.checked,
+                                              },
+                                          })
+                                      }
+                                  />
+
+                                  Zero Phase
+                              </label>
+                          </div>
+                      )}
+                  </div>
+              );
+            }
+            return null;
+        })}
+        </div>
+      )}
+
+      <div className="processing-action-bar">
         <button
           type="button"
           onClick={handleReset}

@@ -80,6 +80,17 @@ export default function useOperationStack() {
         []
     );
 
+    // Hapus operation dari pipeline draft (belum di-commit).
+    // Konsisten dengan addOperation/updateOperation: hanya
+    // mengubah pipeline editor, history berubah saat Apply.
+    const removeOperation = useCallback((operationId) => {
+        setPipeline((currentPipeline) =>
+            currentPipeline.filter(
+                (operation) => operation.id !== operationId
+            )
+        );
+    }, []);
+
     const commit = useCallback(() => {
         const snapshot = pipeline.map((operation) => ({
             ...operation,
@@ -151,6 +162,7 @@ export default function useOperationStack() {
 
         addOperation,
         updateOperation,
+        removeOperation,
         commit,
 
         undo,

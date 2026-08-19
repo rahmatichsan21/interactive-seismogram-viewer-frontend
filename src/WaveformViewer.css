@@ -1278,3 +1278,34 @@ body {
 
 }
 
+/* =========================
+   WAVEFORM VIEWER LAYOUT
+   (Processing Pipeline sidebar + waveform utama)
+========================= */
+
+.waveform-viewer-layout {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.waveform-viewer-main {
+  min-width: 0;
+}
+
+@media (max-width: 1000px) {
+  .waveform-viewer-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .processing-pipeline {
+    position: static;
+    max-height: none;
+  }
+
+  .processing-operation-list {
+    max-height: 40vh;
+  }
+}
+
