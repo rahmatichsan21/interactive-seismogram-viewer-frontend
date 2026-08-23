@@ -1,0 +1,62 @@
+.trace-matrix {
+  overflow-x: auto;
+}
+
+.trace-matrix-grid {
+  display: grid;
+  gap: 4px;
+  align-items: start;
+  min-width: max-content;
+}
+
+.trace-matrix-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #e2e7ec;
+  border-radius: 6px;
+  min-height: 34px;
+  justify-content: center;
+}
+
+.trace-matrix-master {
+  align-items: center;
+  justify-content: center;
+}
+
+.trace-matrix-col-header {
+  text-align: center;
+}
+
+.trace-matrix-row-header {
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.trace-matrix-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #273548;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.trace-matrix-checkbox input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.trace-matrix-master input,
+.trace-matrix-col-header .trace-matrix-checkbox {
+  justify-content: center;
+}
+
+.trace-matrix-col-header .trace-matrix-checkbox {
+  width: 100%;
+}

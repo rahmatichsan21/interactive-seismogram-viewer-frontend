@@ -325,8 +325,36 @@ function ProcessingPipeline({
     });
   }
 
+  // Selalu perluas (expand) operation — dipakai saat user menekan
+  // Add pada operation yang sudah ada, agar user diarahkan untuk
+  // mengedit parameter operation tersebut (bukan toggle tutup).
+  function expandOperation(operationId) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      next.add(operationId);
+      return next;
+    });
+  }
+
+  // Cek apakah operation dengan `type` tertentu sudah ada.
+  // Trim/Filter hanya boleh muncul SATU kali di pipeline — jika
+  // sudah ada, user diarahkan untuk mengedit parameter yang ada
+  // (operation di-expand), bukan menambah operation kedua.
+  function existingOperationByType(type) {
+    return operations.find(
+      (operation) => operation.type === type
+    );
+  }
+
   function handleAddTrim() {
     if (!defaultStartTime || !defaultEndTime) {
+      return;
+    }
+
+    const existing = existingOperationByType("trim");
+
+    if (existing) {
+      expandOperation(existing.id);
       return;
     }
 
@@ -339,14 +367,14 @@ function ProcessingPipeline({
     });
   }
 
-  function handleAddNormalize() {
-    addOperation({
-          type: "normalize",
-          params: {},
-      });
-  }
-
   function handleAddFilter() {
+    const existing = existingOperationByType("filter");
+
+    if (existing) {
+      expandOperation(existing.id);
+      return;
+    }
+
     addOperation({
           type: "filter",
           params: {
@@ -360,10 +388,55 @@ function ProcessingPipeline({
           },
       });
   }
+
+  function handleAddInstrumentCorrection() {
+    const existing = existingOperationByType("instrument_correction");
+
+    if (existing) {
+      expandOperation(existing.id);
+      return;
+    }
+
+    addOperation({
+          type: "instrument_correction",
+          params: {
+              output: "VEL",
+              // Default konservatif, aman untuk channel dengan
+              // Nyquist >= 20 Hz (sampling rate >= 40 Hz).
+              preFiltF1: 0.001,
+              preFiltF2: 0.005,
+              preFiltF3: 10,
+              preFiltF4: 15,
+              waterLevel: 60,
+          },
+      });
+  }
     function handleReset() {
     reset();
     onResetAppliedWaveform();
   }
+
+  // Validasi urutan pipeline: Instrument Correction harus SEBELUM
+  // Filter. Hanya operation enabled yang dianggap step aktif.
+  // Jika invalid, Apply ditolak & warning ditampilkan. User harus
+  // menghapus Filter di atas correction (tombol ×) sendiri.
+  const orderInvalid = (() => {
+    const enabledOps = operations.filter(
+      (operation) => operation.enabled
+    );
+    const filterIdx = enabledOps.findIndex(
+      (operation) => operation.type === "filter"
+    );
+    const corrIdx = enabledOps.findIndex(
+      (operation) => operation.type === "instrument_correction"
+    );
+
+    return (
+      corrIdx !== -1 &&
+      filterIdx !== -1 &&
+      filterIdx < corrIdx
+    );
+  })();
 
   return (
     <section className="processing-pipeline">
@@ -386,21 +459,21 @@ function ProcessingPipeline({
         </button>
 
         <button
-          type="button"
-          className="processing-add-button"
-          onClick={handleAddNormalize}
-          disabled={!hasWaveform || isProcessing}
-        >
-          Add Normalize
-        </button>
-
-        <button
             type="button"
             className="processing-add-button"
             onClick={handleAddFilter}
             disabled={!hasWaveform || isProcessing}
         >
             Add Filter
+        </button>
+
+        <button
+            type="button"
+            className="processing-add-button"
+            onClick={handleAddInstrumentCorrection}
+            disabled={!hasWaveform || isProcessing}
+        >
+            Add Instr. Correction
         </button>
       </div>
 
@@ -517,40 +590,6 @@ function ProcessingPipeline({
                 );
             }
 
-            if (operation.type === "normalize") {
-                return (
-                    <div
-                        className="processing-operation-card"
-                        key={operation.id}
-                    >
-                        <OperationTitle
-                            index={index}
-                            name="Normalize"
-                            isExpanded={isExpanded}
-                            isProcessing={isProcessing}
-                            enabled={operation.enabled}
-                            onToggleEnabled={(checked) =>
-                                updateOperation(operation.id, {
-                                    enabled: checked,
-                                })
-                            }
-                            onToggleExpanded={() =>
-                                toggleExpanded(operation.id)
-                            }
-                            onRemove={() =>
-                                removeOperation(operation.id)
-                            }
-                        />
-
-                        {isExpanded && (
-                            <p className="processing-normalize-hint">
-                                Normalize (Common Y-axis)
-                            </p>
-                        )}
-                    </div>
-                );
-            }
-            
             if (operation.type === "filter") {
               const isBandType =
                   operation.params.filterType === "bandpass"
@@ -702,8 +741,154 @@ function ProcessingPipeline({
                   </div>
               );
             }
+
+            if (operation.type === "instrument_correction") {
+                return (
+                    <div
+                        className="processing-operation-card"
+                        key={operation.id}
+                    >
+                        <OperationTitle
+                            index={index}
+                            name="Instrument Correction"
+                            isExpanded={isExpanded}
+                            isProcessing={isProcessing}
+                            enabled={operation.enabled}
+                            onToggleEnabled={(checked) =>
+                                updateOperation(operation.id, {
+                                    enabled: checked,
+                                })
+                            }
+                            onToggleExpanded={() =>
+                                toggleExpanded(operation.id)
+                            }
+                            onRemove={() =>
+                                removeOperation(operation.id)
+                            }
+                        />
+
+                        {isExpanded && (
+                            <div className="processing-correction-fields">
+                                <label className="processing-filter-type-field">
+                                    Output
+
+                                    <select
+                                        value={operation.params.output}
+                                        disabled={isProcessing}
+                                        onChange={(event) =>
+                                            updateOperation(operation.id, {
+                                                params: {
+                                                    output: event.target.value,
+                                                },
+                                            })
+                                        }
+                                    >
+                                        <option value="VEL">
+                                            Velocity (m/s)
+                                        </option>
+
+                                        <option value="ACC">
+                                            Acceleration (m/s\u00B2)
+                                        </option>
+
+                                        <option value="DISP">
+                                            Displacement (m)
+                                        </option>
+                                    </select>
+                                </label>
+
+                                <div className="processing-correction-prefilt">
+                                    <span>Pre-filter (Hz)</span>
+
+                                    <NumberField
+                                        step="0.001"
+                                        min="0"
+                                        value={operation.params.preFiltF1}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                            updateOperation(operation.id, {
+                                                params: {
+                                                    preFiltF1: nextValue,
+                                                },
+                                            })
+                                        }
+                                    />
+
+                                    <NumberField
+                                        step="0.001"
+                                        min="0"
+                                        value={operation.params.preFiltF2}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                            updateOperation(operation.id, {
+                                                params: {
+                                                    preFiltF2: nextValue,
+                                                },
+                                            })
+                                        }
+                                    />
+
+                                    <NumberField
+                                        step="0.1"
+                                        min="0"
+                                        value={operation.params.preFiltF3}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                            updateOperation(operation.id, {
+                                                params: {
+                                                    preFiltF3: nextValue,
+                                                },
+                                            })
+                                        }
+                                    />
+
+                                    <NumberField
+                                        step="0.1"
+                                        min="0"
+                                        value={operation.params.preFiltF4}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                            updateOperation(operation.id, {
+                                                params: {
+                                                    preFiltF4: nextValue,
+                                                },
+                                            })
+                                        }
+                                    />
+                                </div>
+
+                                <label className="processing-filter-type-field">
+                                    Water Level
+
+                                    <NumberField
+                                        step="1"
+                                        min="0"
+                                        value={operation.params.waterLevel}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                            updateOperation(operation.id, {
+                                                params: {
+                                                    waterLevel: nextValue,
+                                                },
+                                            })
+                                        }
+                                    />
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
             return null;
         })}
+        </div>
+      )}
+
+      {orderInvalid && (
+        <div className="processing-order-warning">
+          {"\u26A0"} Instrument Correction must be applied before
+          Filter. Remove the Filter above before applying Instrument
+          Correction.
         </div>
       )}
 
@@ -723,7 +908,8 @@ function ProcessingPipeline({
           onClick={onApply}
           disabled={
             !hasWaveform ||
-            isProcessing
+            isProcessing ||
+            orderInvalid
           }
         >
           {isProcessing ? "Applying..." : "Apply"}

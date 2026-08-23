@@ -274,12 +274,6 @@
   height: auto;
 }
 
-.processing-normalize-hint {
-  margin: 12px 0 0;
-  color: #64748b;
-  font-size: 13px;
-}
-
 .processing-date-time-control {
   padding: 12px;
   background: #ffffff;
@@ -375,4 +369,76 @@
 
 .processing-apply-button:hover:not(:disabled) {
   background: #008f3c !important;
+}
+
+/* =========================
+   INSTRUMENT CORRECTION
+========================= */
+
+.processing-order-warning {
+  margin-top: 12px;
+  padding: 10px 12px;
+
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 8px;
+
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.processing-correction-fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+
+  margin-top: 12px;
+}
+
+.processing-correction-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.processing-correction-fields input,
+.processing-correction-fields select {
+  width: 100%;
+  height: 36px;
+
+  padding: 0 10px;
+
+  border: 1px solid #cfd7e1;
+  border-radius: 6px;
+
+  background: #ffffff;
+  color: #172033;
+  font-size: 13px;
+}
+
+.processing-correction-fields input:focus,
+.processing-correction-fields select:focus {
+  outline: none;
+  border-color: #526b88;
+  box-shadow: 0 0 0 3px rgba(82, 107, 136, 0.12);
+}
+
+.processing-correction-prefilt {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.processing-correction-prefilt span {
+  grid-column: 1 / -1;
+
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
 }

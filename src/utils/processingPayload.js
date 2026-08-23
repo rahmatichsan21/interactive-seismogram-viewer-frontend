@@ -24,6 +24,19 @@ function toBackendOperation(operation) {
           corners: Number(operation.params.corners),
           zerophase: operation.params.zerophase,
       };
+
+    case "instrument_correction":
+      return {
+          type: "instrument_correction",
+          output: operation.params.output,
+          pre_filt: [
+            Number(operation.params.preFiltF1),
+            Number(operation.params.preFiltF2),
+            Number(operation.params.preFiltF3),
+            Number(operation.params.preFiltF4),
+          ],
+          water_level: Number(operation.params.waterLevel),
+      };
     
     default:
       throw new Error(
@@ -42,9 +55,7 @@ export function toProcessPayload(request, operations) {
     end_time: request.endTime,
     operations: operations
       .filter(
-        (operation) =>
-          operation.enabled &&
-          operation.type !== "normalize"
+        (operation) => operation.enabled
       )
       .map((operation) => {
         if (operation.type === "trim") {

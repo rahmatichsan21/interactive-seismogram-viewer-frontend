@@ -5,6 +5,7 @@ function WaveformPlot({
   activeTraces,
   amplitudeScale = 1,
   normalizeEnabled = false,
+  globalScale = null,
 }) {
   if (!waveformData) {
     return <div>No waveform loaded.</div>;
@@ -35,45 +36,6 @@ function WaveformPlot({
     (trace) =>
       activeTraces.includes(getTraceId(trace))
   );
-
-  const commonScale = (() => {
-    if (!normalizeEnabled || visibleTraces.length === 0) {
-      return null;
-    }
-
-    let globalMin = Infinity;
-    let globalMax = -Infinity;
-
-    visibleTraces.forEach((trace) => {
-      const amplitude = trace.amplitude ?? [];
-
-      if (amplitude.length === 0) {
-        return;
-      }
-
-      for (const value of amplitude) {
-        if (value < globalMin) {
-          globalMin = value;
-        }
-
-        if (value > globalMax) {
-          globalMax = value;
-        }
-      }
-    });
-
-    if (
-      globalMin === Infinity ||
-      globalMax === -Infinity
-    ) {
-      return null;
-    }
-
-    return {
-      min: globalMin,
-      max: globalMax,
-    };
-  })();
 
   return (
     <div className="waveform-list">
@@ -114,13 +76,13 @@ function WaveformPlot({
 
         let yAxisRange;
 
-        if (normalizeEnabled && commonScale) {
+        if (normalizeEnabled && globalScale) {
 
           const centerAmplitude =
-            (commonScale.min + commonScale.max) / 2;
+            (globalScale.min + globalScale.max) / 2;
 
           const originalHalfRange =
-            (commonScale.max - commonScale.min) / 2 || 1;
+            (globalScale.max - globalScale.min) / 2 || 1;
 
           const scaledHalfRange =
             originalHalfRange / amplitudeScale;

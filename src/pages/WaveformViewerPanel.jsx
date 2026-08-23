@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AmplitudeControl from "../components/AmplitudeControl/AmplitudeControl";
 import WaveformPlot from "../components/WaveformPlot/WaveformPlot";
-import TraceSelector from "../components/TraceSelector/TraceSelector";
+import TraceSelectorMatrix from "../components/TraceSelectorMatrix/TraceSelectorMatrix";
 import ProcessingPipeline from "../components/ProcessingPipeline/ProcessingPipeline";
 import SpectrogramPanel from "../components/SpectrogramPanel/SpectrogramPanel";
 
@@ -81,6 +81,11 @@ export default function WaveformViewerPanel({
   const [lastHistoryAction, setLastHistoryAction] = useState(null);
   const [processingErrors, setProcessingErrors] = useState([]);
   const [amplitudeScale, setAmplitudeScale] = useState(1);
+  // Normalize = visualization state (Global/Common Amplitude Scale),
+  // BUKAN processing operation. Disimpan mandiri di sini, tidak
+  // bergantung pada pipeline/history/undo-redo processing.
+  const [normalizeEnabled, setNormalizeEnabled] =
+    useState(false);
   const [spectrogramEnabled, setSpectrogramEnabled] =
     useState(false);
   const [spectrograms, setSpectrograms] = useState({});
@@ -92,6 +97,12 @@ export default function WaveformViewerPanel({
     useState(false);
   const [isDownloading, setIsDownloading] =
     useState(false);
+  // Snapshot trace yang dipilih untuk Download MiniSEED.
+  // Terpisah dari activeTraces (Waveform display) — perubahan di
+  // sini TIDAK mengubah tampilan waveform. Diinisialisasi dari
+  // seluruh visible traces saat menu download dibuka.
+  const [downloadSelection, setDownloadSelection] =
+    useState([]);
 
   const {
     history,
@@ -111,12 +122,6 @@ export default function WaveformViewerPanel({
 
   const displayWaveform = processedWaveform ?? originalWaveform;
 
-  const normalizeEnabled = pipeline.some(
-    (operation) =>
-      operation.enabled &&
-      operation.type === "normalize"
-  );
-
   const visibleTraceIds = activeTraces.length > 0
     ? activeTraces
     : (displayWaveform?.traces ?? []).map(
@@ -126,6 +131,51 @@ export default function WaveformViewerPanel({
   const visibleTraces = displayWaveform?.traces?.filter(
     (trace) => visibleTraceIds.includes(trace.traceId)
   ) ?? [];
+
+  // Global/Common Amplitude Scale untuk Normalize.
+  // Dihitung di level ini (yang melihat SEMUA visible trace),
+  // bukan di dalam WaveformPlot (yang hanya menerima SATU trace).
+  // basis = min/max seluruh visible trace; null saat Normalize
+  // OFF atau tidak ada trace yang valid, sehingga WaveformPlot
+  // jatuh balik ke per-trace scaling.
+  const globalScale = (() => {
+    if (!normalizeEnabled || visibleTraces.length === 0) {
+      return null;
+    }
+
+    let globalMin = Infinity;
+    let globalMax = -Infinity;
+
+    visibleTraces.forEach((trace) => {
+      const amplitude = trace.amplitude ?? [];
+
+      if (amplitude.length === 0) {
+        return;
+      }
+
+      for (const value of amplitude) {
+        if (value < globalMin) {
+          globalMin = value;
+        }
+
+        if (value > globalMax) {
+          globalMax = value;
+        }
+      }
+    });
+
+    if (
+      globalMin === Infinity ||
+      globalMax === -Infinity
+    ) {
+      return null;
+    }
+
+    return {
+      min: globalMin,
+      max: globalMax,
+    };
+  })();
 
   const committedPipeline = history[pointer] ?? [];
 
@@ -137,8 +187,8 @@ export default function WaveformViewerPanel({
   const trimStart = activeTrim?.params?.startTime ?? null;
   const trimEnd = activeTrim?.params?.endTime ?? null;
 
-  async function handleDownloadMiniSeed(channel = null) {
-    console.log("[DOWNLOAD DEBUG] handleDownloadMiniSeed called:", channel);
+  async function handleDownloadMiniSeed(traceIds = null) {
+    console.log("[DOWNLOAD DEBUG] handleDownloadMiniSeed called:", traceIds);
     console.log("[DOWNLOAD DEBUG] loadedRequest:", loadedRequest);
     console.log("[DOWNLOAD DEBUG] visibleTraces:", visibleTraces);
     if (!loadedRequest || visibleTraces.length === 0) {
@@ -146,8 +196,14 @@ export default function WaveformViewerPanel({
       return;
     }
 
+    // Selection eksplisit berbasis trace identity (traceId).
+    // traceIds null = seluruh visible traces.
+    const selectedIds = traceIds ? new Set(traceIds) : null;
+
     const traces = visibleTraces
-      .filter((trace) => !channel || trace.channel === channel)
+      .filter(
+        (trace) => !selectedIds || selectedIds.has(trace.traceId)
+      )
       .map((trace) => ({
         station: trace.station || "*",
         location: trace.location || "*",
@@ -426,6 +482,29 @@ export default function WaveformViewerPanel({
 
   async function handleApplyProcessing() {
     const operationsToApply = getActiveOperations();
+
+    // Validasi urutan: Instrument Correction harus SEBELUM Filter.
+    // Jika invalid, tolak Apply tanpa memproses (tidak commit).
+    const filterIdx = operationsToApply.findIndex(
+      (op) => op.type === "filter"
+    );
+    const corrIdx = operationsToApply.findIndex(
+      (op) => op.type === "instrument_correction"
+    );
+    const orderInvalid =
+      corrIdx !== -1 &&
+      filterIdx !== -1 &&
+      filterIdx < corrIdx;
+
+    if (orderInvalid) {
+      setProcessingErrors([
+        "Instrument Correction must be applied before Filter. " +
+          "Remove the Filter above before applying Instrument " +
+          "Correction.",
+      ]);
+      return;
+    }
+
     const success = await postAndUpdatePlot(operationsToApply);
 
     if (success) {
@@ -567,10 +646,10 @@ export default function WaveformViewerPanel({
 
             {isTraceSelectorOpen && (
               <div className="trace-sticky-content">
-                <TraceSelector
-                  waveformData={displayWaveform}
-                  activeTraces={activeTraces}
-                  setActiveTraces={setActiveTraces}
+                <TraceSelectorMatrix
+                  traces={visibleTraces}
+                  selectedTraceIds={activeTraces}
+                  onSelectionChange={setActiveTraces}
                 />
               </div>
             )}
@@ -580,6 +659,17 @@ export default function WaveformViewerPanel({
                 amplitudeScale={amplitudeScale}
                 setAmplitudeScale={setAmplitudeScale}
               />
+
+              <label className="normalize-compact">
+                <input
+                  type="checkbox"
+                  checked={normalizeEnabled}
+                  onChange={(event) =>
+                    setNormalizeEnabled(event.target.checked)
+                  }
+                />
+                Normalize / Common Scale
+              </label>
 
               <button
                 type="button"
@@ -598,9 +688,16 @@ export default function WaveformViewerPanel({
                   type="button"
                   className="spectrogram-toggle"
                   disabled={isDownloading}
-                  onClick={() => setDownloadMenuOpen(
-                    (open) => !open
-                  )}
+                  onClick={() => {
+                    // Snapshot seluruh visible traces saat menu
+                    // dibuka (terpisah dari activeTraces).
+                    if (!downloadMenuOpen) {
+                      setDownloadSelection(
+                        visibleTraces.map((trace) => trace.traceId)
+                      );
+                    }
+                    setDownloadMenuOpen((open) => !open);
+                  }}
                 >
                   {isDownloading
                     ? "Preparing MiniSEED..."
@@ -609,37 +706,33 @@ export default function WaveformViewerPanel({
 
                 {downloadMenuOpen && (
                   <div className="download-menu">
-                    {[
-                      ...new Set(
-                        visibleTraces.map(
-                          (trace) => trace.channel
-                        )
-                      ),
-                    ].map((channel) => (
-                      <button
-                        type="button"
-                        className="download-menu-item"
-                        key={channel}
-                        onClick={() => {
-                          console.log("[DOWNLOAD DEBUG] clicked:", channel);
-                          void handleDownloadMiniSeed(channel);
-                        }}
-                      >
-                        {channel}
-                      </button>
-                    ))}
+                    <div className="download-menu-title">
+                      Select traces to export
+                    </div>
+
+                    <div className="download-menu-matrix">
+                      <TraceSelectorMatrix
+                        traces={visibleTraces}
+                        selectedTraceIds={downloadSelection}
+                        onSelectionChange={setDownloadSelection}
+                      />
+                    </div>
 
                     <div className="download-menu-divider" />
 
                     <button
                       type="button"
-                      className="download-menu-item"
+                      className="download-menu-item download-menu-download"
+                      disabled={downloadSelection.length === 0 || isDownloading}
                       onClick={() => {
-                        console.log("[DOWNLOAD DEBUG] clicked: All Channels");
-                        void handleDownloadMiniSeed();
+                        console.log(
+                          "[DOWNLOAD DEBUG] download selected:",
+                          downloadSelection
+                        );
+                        void handleDownloadMiniSeed(downloadSelection);
                       }}
                     >
-                      All Channels
+                      Download Selected ({downloadSelection.length})
                     </button>
                   </div>
                 )}
@@ -671,6 +764,7 @@ export default function WaveformViewerPanel({
                     activeTraces={[trace.traceId]}
                     amplitudeScale={amplitudeScale}
                     normalizeEnabled={normalizeEnabled}
+                    globalScale={globalScale}
                   />
 
                   {spectrogramEnabled && (

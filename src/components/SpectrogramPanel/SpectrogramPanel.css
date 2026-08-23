@@ -25,11 +25,31 @@
 
 .download-menu {
   margin-top: 4px;
-  padding: 5px;
+  padding: 10px;
   background: #ffffff;
   border: 1px solid #dbe3ee;
   border-radius: 8px;
   box-shadow: 0 5px 14px rgba(15, 23, 42, 0.12);
+  min-width: 260px;
+  max-width: 520px;
+}
+
+.download-menu-title {
+  margin-bottom: 8px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.download-menu-matrix {
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.download-menu-download:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .download-menu-item {

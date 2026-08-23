@@ -1139,6 +1139,11 @@ body {
   border-top: 1px solid #e2e7ec;
 
   background: #ffffff;
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
 }
 
 /* =========================

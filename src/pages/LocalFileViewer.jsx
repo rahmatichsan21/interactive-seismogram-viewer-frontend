@@ -12,6 +12,35 @@ import {
 import { MAX_POINTS } from "../api/waveformApi";
 import { attachTraceIdentity } from "../utils/traceIdentity";
 
+// Normalisasi timestamp ISO (bisa berisi `Z`, fraksi detik, atau
+// offset) menjadi format `YYYY-MM-DDTHH:MM` yang dipakai Processing
+// Pipeline. Local upload mengirim `str(UTCDateTime)` seperti
+// `2025-07-01T08:00:00.000000Z`; tanpadan ini pipeline membentuk
+// `...Z:00Z` → Invalid Date. Diparse via Date() lalu diformat ulang
+// agar aman terhadap timezone yang sudah ada (tidak ditambahkan
+// lagi). Invalid/parsial dikembalikan apa adanya.
+function normalizeRequestTime(value) {
+  if (!value) {
+    return value;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const pad = (num) => String(num).padStart(2, "0");
+
+  return (
+    `${date.getUTCFullYear()}-` +
+    `${pad(date.getUTCMonth() + 1)}-` +
+    `${pad(date.getUTCDate())}T` +
+    `${pad(date.getUTCHours())}:` +
+    `${pad(date.getUTCMinutes())}`
+  );
+}
+
 export default function LocalFileViewer() {
   const [sessionId, setSessionId] = useState(null);
   const [miniSeedFile, setMiniSeedFile] = useState(null);
@@ -66,8 +95,8 @@ export default function LocalFileViewer() {
         network: "LOCAL",
         location: "*",
         channel: "*",
-        startTime: data.start_time,
-        endTime: data.end_time,
+        startTime: normalizeRequestTime(data.start_time),
+        endTime: normalizeRequestTime(data.end_time),
         stations: [data.station],
         session_id: data.session_id,
       });
