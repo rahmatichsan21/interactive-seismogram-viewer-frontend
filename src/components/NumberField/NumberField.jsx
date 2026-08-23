@@ -91,7 +91,8 @@ function NumberField({
 
   return (
     <input
-      type="number"
+      type="text"
+      inputMode="decimal"
       className={className}
       min={min}
       max={max}
