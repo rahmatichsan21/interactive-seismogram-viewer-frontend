@@ -280,6 +280,7 @@ function ProcessingPipeline({
   waveformEndTime,
   hasWaveform,
   isProcessing,
+  isFiltered = false,
   addOperation,
   updateOperation,
   removeOperation,
@@ -473,6 +474,16 @@ function ProcessingPipeline({
       operation.type === "instrument_correction" &&
       !getPreFiltValidation(operation).valid
   );
+
+  // Block Instrument Correction bila WAVEFORM AKTIF sudah difilter
+  // (committed pipeline punya filter) — bukan hanya draft pipeline.
+  // User harus Remove Filter + Apply agar waveform kembali unfiltered.
+  const hasEnabledCorrection = operations.some(
+    (operation) =>
+      operation.enabled &&
+      operation.type === "instrument_correction"
+  );
+  const correctionBlocked = isFiltered && hasEnabledCorrection;
 
   return (
     <section className="processing-pipeline">
@@ -815,6 +826,15 @@ function ProcessingPipeline({
                             }
                         />
 
+                        {isFiltered && (
+                            <div className="processing-order-warning">
+                                {"\u26A0"} Instrument Correction must be
+                                applied before Filter. Remove the Filter
+                                above before applying Instrument
+                                Correction.
+                            </div>
+                        )}
+
                         {isExpanded && (
                             <div className="processing-correction-fields">
                                 <label className="processing-filter-type-field">
@@ -1028,6 +1048,7 @@ function ProcessingPipeline({
             !hasWaveform ||
             isProcessing ||
             orderInvalid ||
+            correctionBlocked ||
             anyCorrectionInvalid
           }
         >

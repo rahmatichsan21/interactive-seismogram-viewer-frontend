@@ -179,6 +179,17 @@ export default function WaveformViewerPanel({
 
   const committedPipeline = history[pointer] ?? [];
 
+  // Waveform yang sedang aktif (processedWaveform) dihasilkan oleh
+  // committedPipeline (= history[pointer]). Ini sinkron dengan
+  // processedWaveform: keduanya berubah bersama saat Apply/Undo/Redo,
+  // dan TIDAK berubah saat user mengedit draft pipeline (mis. Remove
+  // Filter tanpa Apply). Jadi ini sumber kebenaran "sudah difilter",
+  // bukan pipeline draft.
+  const isFiltered = committedPipeline.some(
+    (operation) =>
+      operation.enabled && operation.type === "filter"
+  );
+
   const activeTrim = committedPipeline.find(
     (operation) =>
       operation.enabled && operation.type === "trim"
@@ -588,6 +599,7 @@ export default function WaveformViewerPanel({
           waveformEndTime={loadedRequest?.endTime}
           hasWaveform={Boolean(originalWaveform)}
           isProcessing={isProcessing}
+          isFiltered={isFiltered}
           addOperation={addOperation}
           updateOperation={updateOperation}
           removeOperation={removeOperation}
