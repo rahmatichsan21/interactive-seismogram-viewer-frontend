@@ -43,27 +43,12 @@ export async function getWaveform({
   endTime,
   maxPoints = MAX_POINTS,
 }) {
-  let finalEndTime;
-
-  if (timeMode === "duration") {
-    const startDate = new Date(startTime);
-
-    startDate.setMinutes(
-      startDate.getMinutes() + Number(duration)
-    );
-
-    const pad = (value) =>
-      String(value).padStart(2, "0");
-
-    finalEndTime =
-      `${startDate.getFullYear()}-` +
-      `${pad(startDate.getMonth() + 1)}-` +
-      `${pad(startDate.getDate())}T` +
-      `${pad(startDate.getHours())}:` +
-      `${pad(startDate.getMinutes())}`;
-  } else {
-    finalEndTime = endTime;
-  }
+  const finalEndTime = resolveEndTime(
+    startTime,
+    timeMode,
+    duration,
+    endTime
+  );
 
   try {
     const response = await axios.get(
@@ -95,6 +80,111 @@ export async function getWaveform({
 
     throw waveformError;
   }
+}
+
+export async function checkWaveformCache({
+  network,
+  station,
+  channel,
+  location,
+  startTime,
+  timeMode,
+  duration,
+  endTime,
+}) {
+  const finalEndTime = resolveEndTime(
+    startTime,
+    timeMode,
+    duration,
+    endTime
+  );
+
+  const response = await axios.get(
+    `${API_URL}/api/waveform/status`,
+    {
+      params: {
+        network,
+        station,
+        location,
+        channel,
+        start_time: startTime,
+        end_time: finalEndTime,
+      },
+    }
+  );
+
+  return response.data;
+}
+
+export async function downloadWaveform({
+  network,
+  station,
+  channel,
+  location,
+  startTime,
+  timeMode,
+  duration,
+  endTime,
+}) {
+  const finalEndTime = resolveEndTime(
+    startTime,
+    timeMode,
+    duration,
+    endTime
+  );
+
+  try {
+    const response = await axios.post(
+      `${API_URL}/api/waveform/download`,
+      null,
+      {
+        params: {
+          network,
+          station,
+          location,
+          channel,
+          start_time: startTime,
+          end_time: finalEndTime,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    const message =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      "Failed to download waveform.";
+
+    const downloadError = new Error(message);
+
+    downloadError.status = error.response?.status;
+
+    throw downloadError;
+  }
+}
+
+function resolveEndTime(startTime, timeMode, duration, endTime) {
+  if (timeMode === "duration") {
+    const startDate = new Date(startTime);
+
+    startDate.setMinutes(
+      startDate.getMinutes() + Number(duration)
+    );
+
+    const pad = (value) =>
+      String(value).padStart(2, "0");
+
+    return (
+      `${startDate.getFullYear()}-` +
+      `${pad(startDate.getMonth() + 1)}-` +
+      `${pad(startDate.getDate())}T` +
+      `${pad(startDate.getHours())}:` +
+      `${pad(startDate.getMinutes())}`
+    );
+  }
+
+  return endTime;
 }
 
 export async function postProcess(payload) {

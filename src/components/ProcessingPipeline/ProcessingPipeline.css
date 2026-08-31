@@ -1,9 +1,7 @@
 .processing-pipeline {
-  /* Sidebar kiri: sticky di dalam grid dua kolom,
-     dengan scroll internal pada daftar operation. */
-  position: sticky;
-  top: 16px;
-  align-self: start;
+  /* Sidebar kiri: card pertama di kolom kontrol. Tidak sticky agar
+     tidak menimpa card "Waveform Traces" di bawahnya saat scroll. */
+  position: static;
 
   display: flex;
   flex-direction: column;

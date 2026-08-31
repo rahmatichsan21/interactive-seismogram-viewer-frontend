@@ -914,6 +914,11 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+
+  /* Sesuaikan dengan lebar card 340px: izinkan kontrol (slider,
+     input angka, reset) turun ke baris berikutnya agar tidak
+     terpotong horizontal. */
+  flex-wrap: wrap;
 }
 
 .normalize-compact {
@@ -1037,11 +1042,10 @@ body {
 }
 
 .waveform-controls-sticky {
-  position: sticky;
-  top: 64px;
-  z-index: 90;
+  position: static;
 
-  margin-bottom: 18px;
+  margin-top: 0;
+  margin-bottom: 0;
 
   background: #ffffff;
 
@@ -1295,6 +1299,31 @@ body {
   align-items: start;
 }
 
+/* Kolom kontrol kiri: Processing Pipeline (atas) + Waveform Traces
+   (bawah) sebagai DUA card terpisah, dibuat sticky sebagai SATU
+   kolom. Jika tinggi gabungan melebihi viewport, kolom scroll
+   internal agar semua kontrol tetap dapat diakses. */
+.waveform-control-column {
+  min-width: 0;
+
+  position: sticky;
+  top: 64px;
+  align-self: start;
+
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
+/* Card di dalam kolom tidak boleh menyusut (flex-shrink) agar konten
+   benar-benar overflow dan kolom dapat di-scroll secara internal. */
+.waveform-control-column > * {
+  flex-shrink: 0;
+}
+
 .waveform-viewer-main {
   min-width: 0;
 }
@@ -1302,6 +1331,12 @@ body {
 @media (max-width: 1000px) {
   .waveform-viewer-layout {
     grid-template-columns: 1fr;
+  }
+
+  .waveform-control-column {
+    position: static;
+    max-height: none;
+    overflow: visible;
   }
 
   .processing-pipeline {

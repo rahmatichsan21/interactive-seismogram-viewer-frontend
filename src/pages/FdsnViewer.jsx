@@ -7,7 +7,7 @@ import ChannelSelector from "../components/ChannelSelector/ChannelSelector";
 import TimeControl from "../components/TimeControl/TimeControl";
 import StationSelectorModal from "../components/StationSelectorModal";
 
-import { getChannels, getWaveform } from "../api/waveformApi";
+import { getChannels, getWaveform, checkWaveformCache, downloadWaveform } from "../api/waveformApi";
 
 import { attachTraceIdentity } from "../utils/traceIdentity";
 import WaveformViewerPanel from "./WaveformViewerPanel";
@@ -45,8 +45,9 @@ export default function FdsnViewer() {
   const [originalWaveform, setOriginalWaveform] = useState(null);
   const [loadedRequest, setLoadedRequest] = useState(null);
 
-  const [isWaveformLoading, setIsWaveformLoading] = useState(false);
-  const [waveformWarnings, setWaveformWarnings] = useState([]);
+const [isWaveformLoading, setIsWaveformLoading] = useState(false);
+const [loadPhase, setLoadPhase] = useState(null);
+const [waveformWarnings, setWaveformWarnings] = useState([]);
 
   const [channelPattern, setChannelPattern] = useState("*");
 
@@ -115,20 +116,61 @@ export default function FdsnViewer() {
     const normalizedChannel = normalizeChannelPattern(channelPattern);
 
     setIsWaveformLoading(true);
+    setLoadPhase("loading");
 
     try {
+      const requestParams = (station) => ({
+        network: selectedNetwork,
+        station,
+        location: locationPattern.trim() || "*",
+        channel: normalizedChannel,
+        startTime,
+        timeMode,
+        duration,
+        endTime,
+      });
+
+      // Fase 1: cek kelengkapan cache (read-only, cepat) untuk memilih
+      // pesan loading. Best-effort — jika status check gagal, dianggap
+      // tidak perlu download dan request utama tetap dijalankan.
+      const statusResults = await Promise.allSettled(
+        selectedStations.map(async (station) => {
+          const status = await checkWaveformCache(requestParams(station));
+          return Boolean(status?.download_needed);
+        })
+      );
+
+      const needsDownload = statusResults.some(
+        (result) => result.status === "fulfilled" && result.value
+      );
+
+      // Fase 2: download window yang hilang ke cache (hanya station
+      // yang butuh). Load berikutnya menjadi cache hit — tidak ada
+      // double download.
+      const downloadErrors = {};
+      if (needsDownload) {
+        setLoadPhase("downloading");
+        const downloadResults = await Promise.allSettled(
+          selectedStations.map(async (station) => {
+            await downloadWaveform(requestParams(station));
+          })
+        );
+        downloadResults.forEach((result, index) => {
+          if (result.status === "rejected") {
+            downloadErrors[selectedStations[index]] =
+              result.reason.message;
+          }
+        });
+      }
+
+      // Fase 3: load waveform dari cache/disk ke viewer.
+      setLoadPhase("loading");
       const waveformResults = await Promise.allSettled(
         selectedStations.map(async (station) => {
-          const waveform = await getWaveform({
-            network: selectedNetwork,
-            station,
-            location: locationPattern.trim() || "*",
-            channel: normalizedChannel,
-            startTime,
-            timeMode,
-            duration,
-            endTime,
-          });
+          if (downloadErrors[station]) {
+            throw new Error(downloadErrors[station]);
+          }
+          const waveform = await getWaveform(requestParams(station));
 
           if (!waveform || !waveform.traces) {
             return [];
@@ -176,6 +218,7 @@ export default function FdsnViewer() {
       console.error("Failed to load waveform:", error);
     } finally {
       setIsWaveformLoading(false);
+      setLoadPhase(null);
     }
   }
 
@@ -282,6 +325,7 @@ export default function FdsnViewer() {
           originalWaveform={originalWaveform}
           loadedRequest={loadedRequest}
           isWaveformLoading={isWaveformLoading}
+          loadPhase={loadPhase}
         />
       </main>
   );

@@ -70,10 +70,65 @@ function validateFilterAgainstNyquist(operations, nyquist) {
   return null;
 }
 
+function validateFilterParams(operations) {
+  for (const operation of operations) {
+    if (operation.type !== "filter") {
+      continue;
+    }
+
+    const { filterType, freq, freqMin, freqMax, corners } = operation.params;
+
+    if (filterType === "bandpass") {
+      const min = Number(freqMin);
+      const max = Number(freqMax);
+      if (Number.isNaN(min) || Number.isNaN(max) || !(min < max)) {
+        return (
+          `Filter bandpass gagal: frekuensi batas bawah harus ` +
+          `lebih kecil dari frekuensi batas atas.`
+        );
+      }
+    } else if (filterType === "lowpass" || filterType === "highpass") {
+      const f = Number(freq);
+      if (Number.isNaN(f) || !(f > 0)) {
+        return (
+          `Filter ${filterType} gagal: frekuensi filter harus ` +
+          `lebih besar dari 0 Hz.`
+        );
+      }
+    }
+
+    const c = Number(corners);
+    if (Number.isNaN(c) || !(c >= 1)) {
+      return `Filter gagal: jumlah poles (corners) minimal 1.`;
+    }
+  }
+
+  return null;
+}
+
+function LoadingBanner({ phase }) {
+  return (
+    <div className="waveform-loading-banner">
+      <div className="loading-spinner"></div>
+      <div className="loading-text">
+        {phase === "downloading" ? (
+          <>
+            <strong>Downloading waveform from BMKG...</strong>
+            <span>This may take a moment. Please wait...</span>
+          </>
+        ) : (
+          <strong>Loading waveform...</strong>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function WaveformViewerPanel({
   originalWaveform,
   loadedRequest,
   isWaveformLoading,
+  loadPhase,
 }) {
   const [isTraceSelectorOpen, setIsTraceSelectorOpen] = useState(false);
   const [waveformWarnings, setWaveformWarnings] = useState([]);
@@ -368,7 +423,7 @@ export default function WaveformViewerPanel({
       } else {
         params.network = trace.network || loadedRequest.network || "IA";
         params.station = trace.station;
-        params.location = loadedRequest.location || "*";
+        params.location = trace.location;
         params.start_time = loadedRequest.startTime;
         params.end_time = loadedRequest.endTime;
       }
@@ -471,6 +526,12 @@ export default function WaveformViewerPanel({
           originalWaveform.traces.map((trace) => trace.traceId)
         );
         return true;
+      }
+
+      const filterValidation = validateFilterParams(operationsToApply);
+      if (filterValidation) {
+        setProcessingErrors([filterValidation]);
+        return false;
       }
 
       const processingResults = await Promise.allSettled(
@@ -657,6 +718,9 @@ export default function WaveformViewerPanel({
         <div className="waveform-header">
           <h2>Waveform Viewer</h2>
         </div>
+        {isWaveformLoading && (
+          <LoadingBanner phase={loadPhase} />
+        )}
         <div className="waveform-empty-state">
           <div className="empty-icon">📈</div>
           <h3>No waveform loaded</h3>
@@ -669,31 +733,166 @@ export default function WaveformViewerPanel({
     );
   }
 
+  const displayControls = displayWaveform ? (
+    <div className="waveform-controls-sticky">
+      <button
+        type="button"
+        className="trace-sticky-toggle"
+        onClick={() =>
+          setIsTraceSelectorOpen((current) => !current)
+        }
+      >
+        <div className="trace-sticky-toggle-left">
+          <span className="trace-sticky-arrow">
+            {isTraceSelectorOpen ? "\u25BC" : "\u25B6"}
+          </span>
+          <span className="trace-sticky-title">
+            Waveform Traces
+          </span>
+        </div>
+        <span className="trace-sticky-count">
+          {activeTraces.length} active
+        </span>
+      </button>
+
+      {isTraceSelectorOpen && (
+        <div className="trace-sticky-content">
+          <TraceSelectorMatrix
+            traces={visibleTraces}
+            selectedTraceIds={activeTraces}
+            onSelectionChange={setActiveTraces}
+          />
+        </div>
+      )}
+
+      <div className="sticky-amplitude-section">
+        <AmplitudeControl
+          amplitudeScale={amplitudeScale}
+          setAmplitudeScale={setAmplitudeScale}
+        />
+
+        <label className="normalize-compact">
+          <input
+            type="checkbox"
+            checked={normalizeEnabled}
+            onChange={(event) =>
+              setNormalizeEnabled(event.target.checked)
+            }
+          />
+          Normalize / Common Scale
+        </label>
+
+        <button
+          type="button"
+          className="spectrogram-toggle"
+          onClick={() => setSpectrogramEnabled(
+            (enabled) => !enabled
+          )}
+        >
+          {spectrogramEnabled
+            ? "Hide Spectrogram"
+            : "Show Spectrogram"}
+        </button>
+
+        <button
+          type="button"
+          className="spectrogram-toggle"
+          onClick={() => setPsdEnabled(
+            (enabled) => !enabled
+          )}
+        >
+          {psdEnabled
+            ? "Hide PSD"
+            : "Show PSD"}
+        </button>
+
+        <div className="download-menu-wrapper">
+          <button
+            type="button"
+            className="spectrogram-toggle"
+            disabled={isDownloading}
+            onClick={() => {
+              // Snapshot seluruh visible traces saat menu
+              // dibuka (terpisah dari activeTraces).
+              if (!downloadMenuOpen) {
+                setDownloadSelection(
+                  visibleTraces.map((trace) => trace.traceId)
+                );
+              }
+              setDownloadMenuOpen((open) => !open);
+            }}
+          >
+            {isDownloading
+              ? "Preparing MiniSEED..."
+              : "Download MiniSEED ▾"}
+          </button>
+
+          {downloadMenuOpen && (
+            <div className="download-menu">
+              <div className="download-menu-title">
+                Select traces to export
+              </div>
+
+              <div className="download-menu-matrix">
+                <TraceSelectorMatrix
+                  traces={visibleTraces}
+                  selectedTraceIds={downloadSelection}
+                  onSelectionChange={setDownloadSelection}
+                />
+              </div>
+
+              <div className="download-menu-divider" />
+
+              <button
+                type="button"
+                className="download-menu-item download-menu-download"
+                disabled={downloadSelection.length === 0 || isDownloading}
+                onClick={() => {
+                  console.log(
+                    "[DOWNLOAD DEBUG] download selected:",
+                    downloadSelection
+                  );
+                  void handleDownloadMiniSeed(downloadSelection);
+                }}
+              >
+                Download Selected ({downloadSelection.length})
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className="waveform-viewer-layout">
-      {originalWaveform && (
-        <ProcessingPipeline
-          operations={pipeline}
-          canUndo={canUndo}
-          canRedo={canRedo}
-          defaultStartTime={loadedRequest?.startTime}
-          defaultEndTime={loadedRequest?.endTime}
-          waveformStartTime={loadedRequest?.startTime}
-          waveformEndTime={loadedRequest?.endTime}
-          hasWaveform={Boolean(originalWaveform)}
-          isProcessing={isProcessing}
-          isFiltered={isFiltered}
-          addOperation={addOperation}
-          updateOperation={updateOperation}
-          removeOperation={removeOperation}
-          onUndo={handleUndoAndApply}
-          onRedo={handleRedoAndApply}
-          lastHistoryAction={lastHistoryAction}
-          reset={reset}
-          onApply={handleApplyProcessing}
-          onResetAppliedWaveform={handleResetAppliedWaveform}
-        />
-      )}
+      <div className="waveform-control-column">
+        {originalWaveform && (
+          <ProcessingPipeline
+            operations={pipeline}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            defaultStartTime={loadedRequest?.startTime}
+            defaultEndTime={loadedRequest?.endTime}
+            waveformStartTime={loadedRequest?.startTime}
+            waveformEndTime={loadedRequest?.endTime}
+            hasWaveform={Boolean(originalWaveform)}
+            isProcessing={isProcessing}
+            isFiltered={isFiltered}
+            addOperation={addOperation}
+            updateOperation={updateOperation}
+            removeOperation={removeOperation}
+            onUndo={handleUndoAndApply}
+            onRedo={handleRedoAndApply}
+            lastHistoryAction={lastHistoryAction}
+            reset={reset}
+            onApply={handleApplyProcessing}
+            onResetAppliedWaveform={handleResetAppliedWaveform}
+          />
+        )}
+
+        {displayControls}
+      </div>
 
       <div className="waveform-viewer-main">
         {processingErrors.length > 0 && (
@@ -717,146 +916,9 @@ export default function WaveformViewerPanel({
           <h2>Waveform Viewer</h2>
         </div>
 
-        {displayWaveform && (
-          <div className="waveform-controls-sticky">
-            <button
-              type="button"
-              className="trace-sticky-toggle"
-              onClick={() =>
-                setIsTraceSelectorOpen((current) => !current)
-              }
-            >
-              <div className="trace-sticky-toggle-left">
-                <span className="trace-sticky-arrow">
-                  {isTraceSelectorOpen ? "\u25BC" : "\u25B6"}
-                </span>
-                <span className="trace-sticky-title">
-                  Waveform Traces
-                </span>
-              </div>
-              <span className="trace-sticky-count">
-                {activeTraces.length} active
-              </span>
-            </button>
-
-            {isTraceSelectorOpen && (
-              <div className="trace-sticky-content">
-                <TraceSelectorMatrix
-                  traces={visibleTraces}
-                  selectedTraceIds={activeTraces}
-                  onSelectionChange={setActiveTraces}
-                />
-              </div>
-            )}
-
-            <div className="sticky-amplitude-section">
-              <AmplitudeControl
-                amplitudeScale={amplitudeScale}
-                setAmplitudeScale={setAmplitudeScale}
-              />
-
-              <label className="normalize-compact">
-                <input
-                  type="checkbox"
-                  checked={normalizeEnabled}
-                  onChange={(event) =>
-                    setNormalizeEnabled(event.target.checked)
-                  }
-                />
-                Normalize / Common Scale
-              </label>
-
-              <button
-                type="button"
-                className="spectrogram-toggle"
-                onClick={() => setSpectrogramEnabled(
-                  (enabled) => !enabled
-                )}
-              >
-                {spectrogramEnabled
-                  ? "Hide Spectrogram"
-                  : "Show Spectrogram"}
-              </button>
-
-              <button
-                type="button"
-                className="spectrogram-toggle"
-                onClick={() => setPsdEnabled(
-                  (enabled) => !enabled
-                )}
-              >
-                {psdEnabled
-                  ? "Hide PSD"
-                  : "Show PSD"}
-              </button>
-
-              <div className="download-menu-wrapper">
-                <button
-                  type="button"
-                  className="spectrogram-toggle"
-                  disabled={isDownloading}
-                  onClick={() => {
-                    // Snapshot seluruh visible traces saat menu
-                    // dibuka (terpisah dari activeTraces).
-                    if (!downloadMenuOpen) {
-                      setDownloadSelection(
-                        visibleTraces.map((trace) => trace.traceId)
-                      );
-                    }
-                    setDownloadMenuOpen((open) => !open);
-                  }}
-                >
-                  {isDownloading
-                    ? "Preparing MiniSEED..."
-                    : "Download MiniSEED ▾"}
-                </button>
-
-                {downloadMenuOpen && (
-                  <div className="download-menu">
-                    <div className="download-menu-title">
-                      Select traces to export
-                    </div>
-
-                    <div className="download-menu-matrix">
-                      <TraceSelectorMatrix
-                        traces={visibleTraces}
-                        selectedTraceIds={downloadSelection}
-                        onSelectionChange={setDownloadSelection}
-                      />
-                    </div>
-
-                    <div className="download-menu-divider" />
-
-                    <button
-                      type="button"
-                      className="download-menu-item download-menu-download"
-                      disabled={downloadSelection.length === 0 || isDownloading}
-                      onClick={() => {
-                        console.log(
-                          "[DOWNLOAD DEBUG] download selected:",
-                          downloadSelection
-                        );
-                        void handleDownloadMiniSeed(downloadSelection);
-                      }}
-                    >
-                      Download Selected ({downloadSelection.length})
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="waveform-content">
           {isWaveformLoading && (
-            <div className="waveform-loading-banner">
-              <div className="loading-spinner"></div>
-              <div className="loading-text">
-                <strong>Loading waveform...</strong>
-                <span>Downloading waveform from BMKG</span>
-              </div>
-            </div>
+            <LoadingBanner phase={loadPhase} />
           )}
 
           {displayWaveform ? (
