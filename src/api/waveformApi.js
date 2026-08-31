@@ -228,6 +228,54 @@ export async function getPSD(params) {
   return response.data;
 }
 
+export async function getHVSR({
+  network,
+  station,
+  location,
+  channelN,
+  channelE,
+  channelZ,
+  startTime,
+  endTime,
+  trimStart,
+  trimEnd,
+  sessionId,
+}) {
+  try {
+    const response = await axios.get(
+      `${API_URL}/api/hvsr`,
+      {
+        params: {
+          network,
+          station,
+          location,
+          channel_n: channelN,
+          channel_e: channelE,
+          channel_z: channelZ,
+          start_time: startTime,
+          end_time: endTime,
+          trim_start: trimStart,
+          trim_end: trimEnd,
+          session_id: sessionId,
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    const message =
+      error.response?.data?.detail ||
+      error.response?.data?.message ||
+      "Failed to load HVSR.";
+
+    const hvsrError = new Error(message);
+
+    hvsrError.status = error.response?.status;
+
+    throw hvsrError;
+  }
+}
+
 export async function downloadMiniSeed(payload) {
   const response = await axios.post(
     `${API_URL}/api/download/miniseed`,

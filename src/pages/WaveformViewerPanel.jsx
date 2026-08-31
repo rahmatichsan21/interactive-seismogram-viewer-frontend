@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Plotly from "plotly.js/dist/plotly";
 import AmplitudeControl from "../components/AmplitudeControl/AmplitudeControl";
 import WaveformPlot from "../components/WaveformPlot/WaveformPlot";
@@ -6,11 +6,13 @@ import TraceSelectorMatrix from "../components/TraceSelectorMatrix/TraceSelector
 import ProcessingPipeline from "../components/ProcessingPipeline/ProcessingPipeline";
 import SpectrogramPanel from "../components/SpectrogramPanel/SpectrogramPanel";
 import PSDPanel from "../components/PSDPanel/PSDPanel";
+import HVSRPanel from "../components/HVSRPanel/HVSRPanel";
 
 import {
   downloadMiniSeed,
   getSpectrogram,
   getPSD,
+  getHVSR,
   postProcess,
 } from "../api/waveformApi";
 
@@ -155,6 +157,10 @@ export default function WaveformViewerPanel({
   const [psds, setPsds] = useState({});
   const [psdLoading, setPsdLoading] = useState({});
   const [psdErrors, setPsdErrors] = useState({});
+  const [hvsrEnabled, setHvsrEnabled] = useState(false);
+  const [hvsrs, setHvsrs] = useState({});
+  const [hvsrLoading, setHvsrLoading] = useState({});
+  const [hvsrErrors, setHvsrErrors] = useState({});
   const [downloadMenuOpen, setDownloadMenuOpen] =
     useState(false);
   const [isDownloading, setIsDownloading] =
@@ -510,6 +516,156 @@ export default function WaveformViewerPanel({
     trimEnd,
   ]);
 
+  // Grouping trace untuk HVSR: grup per (network.station.location),
+  // lalu family channel (base) dengan komponen N/E/Z.
+  const stationGroups = useMemo(() => {
+    const order = [];
+    const byKey = {};
+
+    for (const trace of visibleTraces) {
+      const key = [
+        trace.network || "",
+        trace.station || "",
+        trace.location || "",
+      ].join(".");
+
+      if (!byKey[key]) {
+        byKey[key] = { key, traces: [] };
+        order.push(byKey[key]);
+      }
+      byKey[key].traces.push(trace);
+    }
+
+    return order;
+  }, [visibleChannelKey]);
+
+  const hvsrFamilies = useMemo(() => {
+    const families = [];
+
+    for (const group of stationGroups) {
+      const byBase = {};
+
+      for (const trace of group.traces) {
+        const suffix = trace.channel?.slice(-1);
+        if (suffix !== "N" && suffix !== "E" && suffix !== "Z") {
+          continue;
+        }
+        const base = trace.channel.slice(0, -1);
+
+        if (!byBase[base]) {
+          byBase[base] = { n: null, e: null, z: null };
+        }
+        if (suffix === "N") byBase[base].n = trace;
+        if (suffix === "E") byBase[base].e = trace;
+        if (suffix === "Z") byBase[base].z = trace;
+      }
+
+      for (const [base, comp] of Object.entries(byBase)) {
+        const first =
+          comp.n || comp.e || comp.z;
+
+        families.push({
+          groupKey: `${group.key}.${base}`,
+          stationKey: group.key,
+          network: first?.network,
+          station: first?.station,
+          location: first?.location,
+          base,
+          n: comp.n,
+          e: comp.e,
+          z: comp.z,
+          complete: Boolean(comp.n && comp.e && comp.z),
+        });
+      }
+    }
+
+    return families;
+  }, [stationGroups]);
+
+  useEffect(() => {
+    if (!hvsrEnabled || !loadedRequest) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    const completeFamilies = hvsrFamilies.filter(
+      (family) => family.complete
+    );
+
+    setHvsrs({});
+    setHvsrErrors({});
+    setHvsrLoading(
+      Object.fromEntries(
+        completeFamilies.map((family) => [family.groupKey, true])
+      )
+    );
+
+    async function fetchHvsrForFamily(family) {
+      const params = {
+        channelN: family.n.channel,
+        channelE: family.e.channel,
+        channelZ: family.z.channel,
+      };
+
+      if (loadedRequest.session_id) {
+        params.sessionId = loadedRequest.session_id;
+      } else {
+        params.network = family.network;
+        params.station = family.station;
+        params.location = family.location;
+        params.startTime = loadedRequest.startTime;
+        params.endTime = loadedRequest.endTime;
+      }
+
+      if (trimStart && trimEnd) {
+        params.trimStart = trimStart;
+        params.trimEnd = trimEnd;
+      }
+
+      try {
+        const result = await getHVSR(params);
+        if (!cancelled) {
+          setHvsrs((current) => ({
+            ...current,
+            [family.groupKey]: result,
+          }));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setHvsrErrors((current) => ({
+            ...current,
+            [family.groupKey]:
+              error?.message ||
+              "Failed to load HVSR.",
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setHvsrLoading((current) => ({
+            ...current,
+            [family.groupKey]: false,
+          }));
+        }
+      }
+    }
+
+    completeFamilies.forEach((family) => {
+      void fetchHvsrForFamily(family);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hvsrEnabled,
+    loadedRequest,
+    visibleChannelKey,
+    trimStart,
+    trimEnd,
+    hvsrFamilies,
+  ]);
+
   // Identitas dataset yang sedang dimuat — dipakai untuk
   // membedakan dataset baru (harus reset processing state) dari
   // re-load dataset yang sama (state dipertahankan).
@@ -841,6 +997,18 @@ export default function WaveformViewerPanel({
             : "Show PSD"}
         </button>
 
+        <button
+          type="button"
+          className="spectrogram-toggle"
+          onClick={() => setHvsrEnabled(
+            (enabled) => !enabled
+          )}
+        >
+          {hvsrEnabled
+            ? "Hide HVSR"
+            : "Show HVSR"}
+        </button>
+
         <div className="download-menu-wrapper">
           <button
             type="button"
@@ -982,38 +1150,64 @@ export default function WaveformViewerPanel({
           )}
 
           {displayWaveform ? (
-            <div className="waveform-channel-pairs">
-              {visibleTraces.map((trace) => (
+            <div className="waveform-station-groups">
+              {stationGroups.map((group) => (
                 <div
-                  className="waveform-channel-pair"
-                  key={trace.traceId}
+                  className="waveform-station-group"
+                  key={group.key}
                 >
-                  <WaveformPlot
-                    waveformData={{ traces: [trace] }}
-                    activeTraces={[trace.traceId]}
-                    amplitudeScale={amplitudeScale}
-                    normalizeEnabled={normalizeEnabled}
-                    globalScale={globalScale}
-                    plotRefs={waveformPlotRefs}
-                  />
+                  <div className="waveform-channel-pairs">
+                    {group.traces.map((trace) => (
+                      <div
+                        className="waveform-channel-pair"
+                        key={trace.traceId}
+                      >
+                        <WaveformPlot
+                          waveformData={{ traces: [trace] }}
+                          activeTraces={[trace.traceId]}
+                          amplitudeScale={amplitudeScale}
+                          normalizeEnabled={normalizeEnabled}
+                          globalScale={globalScale}
+                          plotRefs={waveformPlotRefs}
+                        />
 
-                  {spectrogramEnabled && (
-                    <SpectrogramPanel
-                      channel={trace.channel}
-                      imageBase64={spectrograms[trace.traceId]}
-                      loading={spectrogramLoading[trace.traceId] ?? false}
-                      error={spectrogramErrors[trace.traceId] ?? null}
-                    />
-                  )}
+                        {spectrogramEnabled && (
+                          <SpectrogramPanel
+                            channel={trace.channel}
+                            imageBase64={spectrograms[trace.traceId]}
+                            loading={spectrogramLoading[trace.traceId] ?? false}
+                            error={spectrogramErrors[trace.traceId] ?? null}
+                          />
+                        )}
 
-                  {psdEnabled && (
-                    <PSDPanel
-                      traceId={trace.traceId}
-                      imageBase64={psds[trace.traceId]?.psd_image}
-                      loading={psdLoading[trace.traceId] ?? false}
-                      error={psdErrors[trace.traceId] ?? null}
-                    />
-                  )}
+                        {psdEnabled && (
+                          <PSDPanel
+                            traceId={trace.traceId}
+                            imageBase64={psds[trace.traceId]?.psd_image}
+                            loading={psdLoading[trace.traceId] ?? false}
+                            error={psdErrors[trace.traceId] ?? null}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {hvsrEnabled &&
+                    hvsrFamilies
+                      .filter(
+                        (family) =>
+                          family.stationKey === group.key
+                      )
+                      .map((family) => (
+                        <HVSRPanel
+                          key={family.groupKey}
+                          title={family.groupKey}
+                          imageBase64={hvsrs[family.groupKey]?.hvsr_image}
+                          loading={hvsrLoading[family.groupKey] ?? false}
+                          error={hvsrErrors[family.groupKey] ?? null}
+                          incomplete={!family.complete}
+                        />
+                      ))}
                 </div>
               ))}
             </div>
