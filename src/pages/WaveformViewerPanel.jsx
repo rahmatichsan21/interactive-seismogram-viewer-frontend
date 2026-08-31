@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import Plotly from "plotly.js/dist/plotly";
 import AmplitudeControl from "../components/AmplitudeControl/AmplitudeControl";
 import WaveformPlot from "../components/WaveformPlot/WaveformPlot";
 import TraceSelectorMatrix from "../components/TraceSelectorMatrix/TraceSelectorMatrix";
@@ -165,6 +166,14 @@ export default function WaveformViewerPanel({
   const [downloadSelection, setDownloadSelection] =
     useState([]);
 
+  // "menu" = daftar pilihan (Download PNG / Download MiniSEED),
+  // "miniseed" = sub-panel pemilihan trace export.
+  const [downloadMode, setDownloadMode] =
+    useState("menu");
+
+  // Refs ke graph div tiap Plot (untuk Plotly.toImage saat Download PNG).
+  const waveformPlotRefs = useRef({});
+
   const {
     history,
     pointer,
@@ -315,6 +324,32 @@ export default function WaveformViewerPanel({
     } finally {
       setIsDownloading(false);
     }
+  }
+
+  // Download PNG untuk SEMUA waveform trace yang sedang ditampilkan.
+  // Satu displayed trace = satu file PNG (Plotly.toImage pada plot yang
+  // benar-benar dirender). Tidak ada PNG gabungan/multi-trace.
+  async function handleDownloadPng() {
+    for (const trace of visibleTraces) {
+      const gd = waveformPlotRefs.current[trace.traceId];
+      if (!gd) {
+        continue;
+      }
+
+      const url = await Plotly.toImage(gd, {
+        format: "png",
+        scale: 1,
+      });
+
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${trace.traceId}.png`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    }
+
+    setDownloadMenuOpen(false);
   }
 
   const visibleChannelKey = visibleTraces
@@ -818,16 +853,41 @@ export default function WaveformViewerPanel({
                 setDownloadSelection(
                   visibleTraces.map((trace) => trace.traceId)
                 );
+                setDownloadMode("menu");
               }
               setDownloadMenuOpen((open) => !open);
             }}
           >
             {isDownloading
               ? "Preparing MiniSEED..."
-              : "Download MiniSEED ▾"}
+              : "Download ▾"}
           </button>
 
-          {downloadMenuOpen && (
+          {downloadMenuOpen && downloadMode === "menu" && (
+            <div className="download-menu">
+              <button
+                type="button"
+                className="download-menu-item"
+                onClick={() => {
+                  void handleDownloadPng();
+                }}
+              >
+                Download PNG
+              </button>
+
+              <div className="download-menu-divider" />
+
+              <button
+                type="button"
+                className="download-menu-item"
+                onClick={() => setDownloadMode("miniseed")}
+              >
+                Download MiniSEED
+              </button>
+            </div>
+          )}
+
+          {downloadMenuOpen && downloadMode === "miniseed" && (
             <div className="download-menu">
               <div className="download-menu-title">
                 Select traces to export
@@ -934,6 +994,7 @@ export default function WaveformViewerPanel({
                     amplitudeScale={amplitudeScale}
                     normalizeEnabled={normalizeEnabled}
                     globalScale={globalScale}
+                    plotRefs={waveformPlotRefs}
                   />
 
                   {spectrogramEnabled && (

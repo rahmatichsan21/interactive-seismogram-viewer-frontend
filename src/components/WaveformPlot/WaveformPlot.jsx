@@ -6,6 +6,7 @@ function WaveformPlot({
   amplitudeScale = 1,
   normalizeEnabled = false,
   globalScale = null,
+  plotRefs = null,
 }) {
   if (!waveformData) {
     return <div>No waveform loaded.</div>;
@@ -142,6 +143,12 @@ function WaveformPlot({
                 <div style={{ flex: 1 }}>
                     <Plot
                         data={plotData}
+
+                        ref={(el) => {
+                          if (plotRefs) {
+                            plotRefs.current[traceId] = el;
+                          }
+                        }}
 
                         layout={{
                             height: 280,
