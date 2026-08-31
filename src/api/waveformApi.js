@@ -130,6 +130,14 @@ export async function getSpectrogram(params) {
   return response.data;
 }
 
+export async function getPSD(params) {
+  const response = await axios.get(
+    `${API_URL}/api/psd`,
+    { params }
+  );
+  return response.data;
+}
+
 export async function downloadMiniSeed(payload) {
   const response = await axios.post(
     `${API_URL}/api/download/miniseed`,

@@ -4,10 +4,12 @@ import WaveformPlot from "../components/WaveformPlot/WaveformPlot";
 import TraceSelectorMatrix from "../components/TraceSelectorMatrix/TraceSelectorMatrix";
 import ProcessingPipeline from "../components/ProcessingPipeline/ProcessingPipeline";
 import SpectrogramPanel from "../components/SpectrogramPanel/SpectrogramPanel";
+import PSDPanel from "../components/PSDPanel/PSDPanel";
 
 import {
   downloadMiniSeed,
   getSpectrogram,
+  getPSD,
   postProcess,
 } from "../api/waveformApi";
 
@@ -93,6 +95,10 @@ export default function WaveformViewerPanel({
     useState({});
   const [spectrogramErrors, setSpectrogramErrors] =
     useState({});
+  const [psdEnabled, setPsdEnabled] = useState(false);
+  const [psds, setPsds] = useState({});
+  const [psdLoading, setPsdLoading] = useState({});
+  const [psdErrors, setPsdErrors] = useState({});
   const [downloadMenuOpen, setDownloadMenuOpen] =
     useState(false);
   const [isDownloading, setIsDownloading] =
@@ -257,7 +263,7 @@ export default function WaveformViewerPanel({
   }
 
   const visibleChannelKey = visibleTraces
-    .map((trace) => trace.channel)
+    .map((trace) => trace.traceId)
     .join("|");
 
   useEffect(() => {
@@ -271,7 +277,7 @@ export default function WaveformViewerPanel({
     setSpectrogramErrors({});
     setSpectrogramLoading(
       Object.fromEntries(
-        visibleTraces.map((trace) => [trace.channel, true])
+        visibleTraces.map((trace) => [trace.traceId, true])
       )
     );
 
@@ -283,8 +289,8 @@ export default function WaveformViewerPanel({
       if (loadedRequest.session_id) {
         params.session_id = loadedRequest.session_id;
       } else {
-        params.network = loadedRequest.network || "IA";
-        params.station = loadedRequest.stations?.[0] || "";
+        params.network = trace.network || loadedRequest.network || "IA";
+        params.station = trace.station;
         params.location = loadedRequest.location || "*";
         params.start_time = loadedRequest.startTime;
         params.end_time = loadedRequest.endTime;
@@ -300,14 +306,14 @@ export default function WaveformViewerPanel({
         if (!cancelled) {
           setSpectrograms((current) => ({
             ...current,
-            [trace.channel]: result.spectrogram,
+            [trace.traceId]: result.spectrogram,
           }));
         }
       } catch (error) {
         if (!cancelled) {
           setSpectrogramErrors((current) => ({
             ...current,
-            [trace.channel]:
+            [trace.traceId]:
               error.response?.data?.detail ||
               "Failed to load spectrogram.",
           }));
@@ -316,7 +322,7 @@ export default function WaveformViewerPanel({
         if (!cancelled) {
           setSpectrogramLoading((current) => ({
             ...current,
-            [trace.channel]: false,
+            [trace.traceId]: false,
           }));
         }
       }
@@ -331,6 +337,83 @@ export default function WaveformViewerPanel({
     };
   }, [
     spectrogramEnabled,
+    loadedRequest,
+    visibleChannelKey,
+    trimStart,
+    trimEnd,
+  ]);
+
+  useEffect(() => {
+    if (!psdEnabled || !loadedRequest) {
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    setPsds({});
+    setPsdErrors({});
+    setPsdLoading(
+      Object.fromEntries(
+        visibleTraces.map((trace) => [trace.traceId, true])
+      )
+    );
+
+    async function fetchPsdForTrace(trace) {
+      const params = {
+        channel: trace.channel,
+      };
+
+      if (loadedRequest.session_id) {
+        params.session_id = loadedRequest.session_id;
+      } else {
+        params.network = trace.network || loadedRequest.network || "IA";
+        params.station = trace.station;
+        params.location = loadedRequest.location || "*";
+        params.start_time = loadedRequest.startTime;
+        params.end_time = loadedRequest.endTime;
+      }
+
+      if (trimStart && trimEnd) {
+        params.trim_start = trimStart;
+        params.trim_end = trimEnd;
+      }
+
+      try {
+        const result = await getPSD(params);
+        if (!cancelled) {
+          setPsds((current) => ({
+            ...current,
+            [trace.traceId]: result,
+          }));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPsdErrors((current) => ({
+            ...current,
+            [trace.traceId]:
+              error.response?.data?.detail ||
+              "Failed to load PSD.",
+          }));
+        }
+      } finally {
+        if (!cancelled) {
+          setPsdLoading((current) => ({
+            ...current,
+            [trace.traceId]: false,
+          }));
+        }
+      }
+    }
+
+    visibleTraces.forEach((trace) => {
+      void fetchPsdForTrace(trace);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    psdEnabled,
     loadedRequest,
     visibleChannelKey,
     trimStart,
@@ -695,6 +778,18 @@ export default function WaveformViewerPanel({
                   : "Show Spectrogram"}
               </button>
 
+              <button
+                type="button"
+                className="spectrogram-toggle"
+                onClick={() => setPsdEnabled(
+                  (enabled) => !enabled
+                )}
+              >
+                {psdEnabled
+                  ? "Hide PSD"
+                  : "Show PSD"}
+              </button>
+
               <div className="download-menu-wrapper">
                 <button
                   type="button"
@@ -782,9 +877,18 @@ export default function WaveformViewerPanel({
                   {spectrogramEnabled && (
                     <SpectrogramPanel
                       channel={trace.channel}
-                      imageBase64={spectrograms[trace.channel]}
-                      loading={spectrogramLoading[trace.channel] ?? false}
-                      error={spectrogramErrors[trace.channel] ?? null}
+                      imageBase64={spectrograms[trace.traceId]}
+                      loading={spectrogramLoading[trace.traceId] ?? false}
+                      error={spectrogramErrors[trace.traceId] ?? null}
+                    />
+                  )}
+
+                  {psdEnabled && (
+                    <PSDPanel
+                      traceId={trace.traceId}
+                      imageBase64={psds[trace.traceId]?.psd_image}
+                      loading={psdLoading[trace.traceId] ?? false}
+                      error={psdErrors[trace.traceId] ?? null}
                     />
                   )}
                 </div>
