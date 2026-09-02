@@ -572,7 +572,7 @@ export default function WaveformViewerPanel({
     }
 
     return order;
-  }, [visibleChannelKey]);
+  }, [visibleChannelKey, processedWaveform]);
 
   const hvsrFamilies = useMemo(() => {
     const families = [];
