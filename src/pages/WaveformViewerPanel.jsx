@@ -208,6 +208,7 @@ export default function WaveformViewerPanel({
     useState([]);
 
   // "menu" = daftar pilihan (Download PNG / Download MiniSEED),
+  // "png" = submenu pilihan jenis PNG (Waveform/Spectrogram/PSD/HVSR),
   // "miniseed" = sub-panel pemilihan trace export.
   const [downloadMode, setDownloadMode] =
     useState("menu");
@@ -393,6 +394,60 @@ export default function WaveformViewerPanel({
     setDownloadMenuOpen(false);
   }
 
+  // Download data-URL PNG (base64) yang sudah tersedia di state —
+  // tidak ada request API baru dan tidak ada grafik yang digenerate
+  // ulang. Dipakai untuk Spectrogram/PSD/HVSR di submenu Download PNG.
+  function downloadBase64Png(base64, filename) {
+    const anchor = document.createElement("a");
+    anchor.href = `data:image/png;base64,${base64}`;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  }
+
+  // Download PNG Spectrogram untuk setiap visible trace yang
+  // gambarnya sudah tersedia di state `spectrograms`.
+  function handleDownloadSpectrogramPng() {
+    for (const trace of visibleTraces) {
+      const base64 = spectrograms[trace.traceId];
+      if (!base64) {
+        continue;
+      }
+      downloadBase64Png(base64, `${trace.traceId}_spectrogram.png`);
+    }
+
+    setDownloadMenuOpen(false);
+  }
+
+  // Download PNG PSD untuk setiap visible trace yang gambarnya
+  // sudah tersedia di state `psds`.
+  function handleDownloadPsdPng() {
+    for (const trace of visibleTraces) {
+      const base64 = psds[trace.traceId]?.psd_image;
+      if (!base64) {
+        continue;
+      }
+      downloadBase64Png(base64, `${trace.traceId}_psd.png`);
+    }
+
+    setDownloadMenuOpen(false);
+  }
+
+  // Download PNG HVSR untuk setiap family (N/E/Z) yang gambarnya
+  // sudah tersedia di state `hvsrs`.
+  function handleDownloadHvsrPng() {
+    for (const family of hvsrFamilies) {
+      const base64 = hvsrs[family.groupKey]?.hvsr_image;
+      if (!base64) {
+        continue;
+      }
+      downloadBase64Png(base64, `${family.groupKey}_hvsr.png`);
+    }
+
+    setDownloadMenuOpen(false);
+  }
+
   const visibleChannelKey = visibleTraces
     .map((trace) => trace.traceId)
     .join("|");
@@ -522,7 +577,7 @@ export default function WaveformViewerPanel({
           setPsdErrors((current) => ({
             ...current,
             [trace.traceId]:
-              error.response?.data?.detail ||
+              error?.message ||
               "Failed to load PSD.",
           }));
         }
@@ -1156,11 +1211,9 @@ export default function WaveformViewerPanel({
               <button
                 type="button"
                 className="download-menu-item"
-                onClick={() => {
-                  void handleDownloadPng();
-                }}
+                onClick={() => setDownloadMode("png")}
               >
-                Download PNG
+                PNG ▸
               </button>
 
               <div className="download-menu-divider" />
@@ -1171,6 +1224,67 @@ export default function WaveformViewerPanel({
                 onClick={() => setDownloadMode("miniseed")}
               >
                 Download MiniSEED
+              </button>
+            </div>
+          )}
+
+          {downloadMenuOpen && downloadMode === "png" && (
+            <div className="download-menu">
+              <div className="download-menu-title">
+                Download PNG
+              </div>
+
+              <button
+                type="button"
+                className="download-menu-item"
+                onClick={() => {
+                  void handleDownloadPng();
+                }}
+              >
+                Waveform
+              </button>
+
+              <button
+                type="button"
+                className="download-menu-item"
+                disabled={!spectrogramEnabled}
+                onClick={() => {
+                  handleDownloadSpectrogramPng();
+                }}
+              >
+                Spectrogram
+              </button>
+
+              <button
+                type="button"
+                className="download-menu-item"
+                disabled={!psdEnabled}
+                onClick={() => {
+                  handleDownloadPsdPng();
+                }}
+              >
+                PSD
+              </button>
+
+              <button
+                type="button"
+                className="download-menu-item"
+                disabled={!hvsrEnabled}
+                onClick={() => {
+                  handleDownloadHvsrPng();
+                }}
+              >
+                HVSR
+              </button>
+
+              <div className="download-menu-divider" />
+
+              <button
+                type="button"
+                className="download-menu-item"
+                onClick={() => setDownloadMode("menu")}
+              >
+                ← Back
               </button>
             </div>
           )}
