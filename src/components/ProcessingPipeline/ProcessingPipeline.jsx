@@ -826,7 +826,7 @@ function ProcessingPipeline({
                             }
                         />
 
-                        {isFiltered && (
+                        {orderInvalid && (
                             <div className="processing-order-warning">
                                 {"\u26A0"} Instrument Correction must be
                                 applied before Filter. Remove the Filter
