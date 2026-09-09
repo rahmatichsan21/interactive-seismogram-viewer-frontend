@@ -158,7 +158,8 @@ export async function downloadWaveform({
 
     const downloadError = new Error(message);
 
-    downloadError.status = error.response?.status;
+    downloadError.status =
+      error.response?.status;
 
     throw downloadError;
   }
@@ -206,7 +207,8 @@ export async function postProcess(payload) {
 
     const processingError = new Error(message);
 
-    processingError.status = error.response?.status;
+    processingError.status =
+      error.response?.status;
 
     throw processingError;
   }
@@ -270,10 +272,50 @@ export async function getHVSR({
 
     const hvsrError = new Error(message);
 
-    hvsrError.status = error.response?.status;
+    hvsrError.status =
+      error.response?.status;
 
     throw hvsrError;
   }
+}
+
+export async function downloadStationXML({ network, station }) {
+  const response = await axios.get(
+    `${API_URL}/api/download/stationxml`,
+    {
+      params: {
+        network,
+        station,
+      },
+      responseType: "blob",
+    }
+  );
+
+  const contentDisposition =
+    response.headers["content-disposition"];
+
+  const filenameMatch =
+    contentDisposition?.match(
+      /filename="?([^";]+)"?/i
+    );
+
+  const filename =
+    filenameMatch?.[1] || `${station}.xml`;
+
+  const url =
+    URL.createObjectURL(response.data);
+
+  const anchor =
+    document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  URL.revokeObjectURL(url);
 }
 
 export async function downloadMiniSeed(payload) {
@@ -283,17 +325,30 @@ export async function downloadMiniSeed(payload) {
     { responseType: "blob" }
   );
 
-  const contentDisposition = response.headers["content-disposition"];
-  const filenameMatch = contentDisposition?.match(
-    /filename="?([^";]+)"?/i
-  );
-  const filename = filenameMatch?.[1] || "waveform.mseed";
-  const url = URL.createObjectURL(response.data);
-  const anchor = document.createElement("a");
+  const contentDisposition =
+    response.headers["content-disposition"];
+
+  const filenameMatch =
+    contentDisposition?.match(
+      /filename="?([^";]+)"?/i
+    );
+
+  const filename =
+    filenameMatch?.[1] || "waveform.mseed";
+
+  const url =
+    URL.createObjectURL(response.data);
+
+  const anchor =
+    document.createElement("a");
+
   anchor.href = url;
   anchor.download = filename;
+
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
+
   URL.revokeObjectURL(url);
 }
+

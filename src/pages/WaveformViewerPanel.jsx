@@ -10,6 +10,7 @@ import HVSRPanel from "../components/HVSRPanel/HVSRPanel";
 
 import {
   downloadMiniSeed,
+  downloadStationXML,
   getSpectrogram,
   getPSD,
   getHVSR,
@@ -207,9 +208,10 @@ export default function WaveformViewerPanel({
   const [downloadSelection, setDownloadSelection] =
     useState([]);
 
-  // "menu" = daftar pilihan (Download PNG / Download MiniSEED),
+  // "menu" = daftar pilihan export,
   // "png" = submenu pilihan jenis PNG (Waveform/Spectrogram/PSD/HVSR),
-  // "miniseed" = sub-panel pemilihan trace export.
+  // "miniseed" = sub-panel pemilihan trace export,
+  // "stationxml" = sub-panel pemilihan station untuk StationXML.
   const [downloadMode, setDownloadMode] =
     useState("menu");
 
@@ -309,6 +311,34 @@ export default function WaveformViewerPanel({
 
   const trimStart = activeTrim?.params?.startTime ?? null;
   const trimEnd = activeTrim?.params?.endTime ?? null;
+
+  const downloadableStations = [...new Set(
+    (loadedRequest?.stations ?? [])
+      .filter(Boolean)
+  )].sort();
+
+  async function handleDownloadStationXML(station) {
+    if (!loadedRequest?.network || !station) {
+      return;
+    }
+
+    setIsDownloading(true);
+    setDownloadMenuOpen(false);
+    try {
+      await downloadStationXML({
+        network: loadedRequest.network,
+        station,
+      });
+    } catch (error) {
+      alert(
+        error.response?.data?.detail ||
+        error.message ||
+        `Failed to download StationXML for ${station}.`
+      );
+    } finally {
+      setIsDownloading(false);
+    }
+  }
 
   async function handleDownloadMiniSeed(traceIds = null) {
     console.log("[DOWNLOAD DEBUG] handleDownloadMiniSeed called:", traceIds);
@@ -1202,7 +1232,7 @@ export default function WaveformViewerPanel({
             }}
           >
             {isDownloading
-              ? "Preparing MiniSEED..."
+              ? "Preparing download..."
               : "Download ▾"}
           </button>
 
@@ -1224,6 +1254,15 @@ export default function WaveformViewerPanel({
                 onClick={() => setDownloadMode("miniseed")}
               >
                 Download MiniSEED
+              </button>
+
+              <button
+                type="button"
+                className="download-menu-item"
+                disabled={downloadableStations.length === 0 || Boolean(loadedRequest?.session_id)}
+                onClick={() => setDownloadMode("stationxml")}
+              >
+                Download StationXML
               </button>
             </div>
           )}
@@ -1276,6 +1315,38 @@ export default function WaveformViewerPanel({
               >
                 HVSR
               </button>
+
+              <div className="download-menu-divider" />
+
+              <button
+                type="button"
+                className="download-menu-item"
+                onClick={() => setDownloadMode("menu")}
+              >
+                ← Back
+              </button>
+            </div>
+          )}
+
+          {downloadMenuOpen && downloadMode === "stationxml" && (
+            <div className="download-menu">
+              <div className="download-menu-title">
+                Select station to export
+              </div>
+
+              {downloadableStations.map((station) => (
+                <button
+                  key={station}
+                  type="button"
+                  className="download-menu-item download-menu-download"
+                  disabled={isDownloading}
+                  onClick={() => {
+                    void handleDownloadStationXML(station);
+                  }}
+                >
+                  {station}.xml
+                </button>
+              ))}
 
               <div className="download-menu-divider" />
 
