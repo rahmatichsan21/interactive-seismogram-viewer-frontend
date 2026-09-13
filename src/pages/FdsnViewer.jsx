@@ -44,6 +44,7 @@ export default function FdsnViewer() {
 
   const [originalWaveform, setOriginalWaveform] = useState(null);
   const [loadedRequest, setLoadedRequest] = useState(null);
+  const [waveformLoadId, setWaveformLoadId] = useState(0);
 
 const [isWaveformLoading, setIsWaveformLoading] = useState(false);
 const [loadPhase, setLoadPhase] = useState(null);
@@ -107,6 +108,7 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
   }
 
   async function handleLoadWaveform() {
+    setWaveformLoadId((id) => id + 1);
     if (selectedStations.length === 0) {
       alert("Select at least one station");
       return;
@@ -114,6 +116,11 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
 
     const requestEndTime = getFinalEndTime();
     const normalizedChannel = normalizeChannelPattern(channelPattern);
+
+    setWaveformLoadId((id) => id + 1);
+    setOriginalWaveform(null);
+    setLoadedRequest(null);
+    setWaveformWarnings([]);
 
     setIsWaveformLoading(true);
     setLoadPhase("loading");
@@ -184,15 +191,22 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
       const warnings = [];
 
       waveformResults.forEach((result, index) => {
-        const station = selectedStations[index];
+      const station = selectedStations[index];
 
-        if (result.status === "fulfilled") {
-          successfulTraces.push(...result.value);
+      if (result.status === "fulfilled") {
+        successfulTraces.push(...result.value);
+      } else {
+        const errorMessage = result.reason?.message || "Unknown error";
+
+        if (errorMessage === "cannot convert float NaN to integer") {
+          warnings.push(
+            `${station}: Waveform tidak dapat diproses karena terdapat nilai waktu NaN pada trace.`
+          );
         } else {
-          warnings.push(`${station}: ${result.reason.message}`);
+          warnings.push(`${station}: ${errorMessage}`);
         }
-      });
-
+      }
+    });
       const combinedWaveform = { traces: successfulTraces };
 
       const loadedStations = [
@@ -326,6 +340,8 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
           loadedRequest={loadedRequest}
           isWaveformLoading={isWaveformLoading}
           loadPhase={loadPhase}
+          waveformLoadId={waveformLoadId}
+          waveformWarnings={waveformWarnings}
         />
       </main>
   );

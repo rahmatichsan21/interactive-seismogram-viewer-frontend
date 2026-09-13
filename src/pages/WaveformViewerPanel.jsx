@@ -168,12 +168,15 @@ export default function WaveformViewerPanel({
   loadedRequest,
   isWaveformLoading,
   loadPhase,
+  waveformLoadId,
+  waveformWarnings = [],
 }) {
   const [isTraceSelectorOpen, setIsTraceSelectorOpen] = useState(false);
-  const [waveformWarnings, setWaveformWarnings] = useState([]);
   const [processedWaveform, setProcessedWaveform] = useState(null);
   const [activeTraces, setActiveTraces] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const processingLoadIdRef = useRef(waveformLoadId);
+  processingLoadIdRef.current = waveformLoadId;
   const [lastHistoryAction, setLastHistoryAction] = useState(null);
   const [processingErrors, setProcessingErrors] = useState([]);
   const [amplitudeScale, setAmplitudeScale] = useState(1);
@@ -201,6 +204,7 @@ export default function WaveformViewerPanel({
     useState(false);
   const [isDownloading, setIsDownloading] =
     useState(false);
+    
   // Snapshot trace yang dipilih untuk Download MiniSEED.
   // Terpisah dari activeTraces (Waveform display) — perubahan di
   // sini TIDAK mengubah tampilan waveform. Diinisialisasi dari
@@ -803,44 +807,23 @@ export default function WaveformViewerPanel({
     : null;
 
   useEffect(() => {
+    // Setiap Load Waveform baru harus membuang state
+    // processing dari waveform sebelumnya.
+    setProcessedWaveform(null);
+    setProcessingErrors([]);
+    setAmplitudeScale(1);
+    reset();
+
     if (!originalWaveform || !loadedRequest) {
+      setActiveTraces([]);
       return;
     }
 
-    // [TEMP DEBUG] Mengamati apakah effect reset BERJALAN dan kapan.
-    console.log("[PROCESS DEBUG] waveformKey effect RUNNING");
-    console.log("[PROCESS DEBUG]   waveformKey =", waveformKey);
-    console.log(
-      "[PROCESS DEBUG]   processedWaveform before reset =",
-      processedWaveform ? "NON-NULL" : "null"
-    );
-    console.log(
-      "[PROCESS DEBUG]   loadedRequest =",
-      JSON.stringify({
-        session_id: loadedRequest.session_id,
-        network: loadedRequest.network,
-        station: loadedRequest.station,
-        location: loadedRequest.location,
-        channel: loadedRequest.channel,
-        startTime: loadedRequest.startTime,
-        endTime: loadedRequest.endTime,
-        stations: loadedRequest.stations,
-      })
-    );
-
-    // Dataset BARU → reset semua state yang melekat pada
-    // dataset sebelumnya. UI preference (mis. spectrogramEnabled)
-    // sengaja TIDAK di-reset. Spectrogram di-refetch otomatis
-    // oleh effect spectrogram yang bergantung pada loadedRequest.
-    setProcessedWaveform(null);
     setActiveTraces(
       originalWaveform.traces.map((trace) => trace.traceId)
     );
-    setAmplitudeScale(1);
-    reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [waveformKey]);
-
+  }, [waveformLoadId, waveformKey]);
+  
   // [TEMP DEBUG] Amati processedWaveform & sumber display.
   const processedObserverSkip = useRef(true);
   useEffect(() => {
@@ -875,6 +858,7 @@ export default function WaveformViewerPanel({
   async function postAndUpdatePlot(
     operationsToApply = getActiveOperations()
   ) {
+    const requestLoadId = waveformLoadId;
     if (!originalWaveform || !loadedRequest) {
       return false;
     }
@@ -956,7 +940,9 @@ export default function WaveformViewerPanel({
           }));
         })
       );
-
+      if (processingLoadIdRef.current !== requestLoadId) {
+        return false;
+      }
       const processedTraces = [];
       const errors = [];
       const failedStations = new Set();
@@ -1011,7 +997,9 @@ export default function WaveformViewerPanel({
       setProcessingErrors([error.message]);
       return false;
     } finally {
-      setIsProcessing(false);
+      if (processingLoadIdRef.current === requestLoadId) {
+        setIsProcessing(false);
+      }
     }
   }
 
@@ -1454,7 +1442,7 @@ export default function WaveformViewerPanel({
             <LoadingBanner phase={loadPhase} />
           )}
 
-          {displayWaveform ? (
+          {displayWaveform?.traces?.length > 0 ?  (
             <div className="waveform-station-groups">
               {stationGroups.map((group) => (
                 <div
