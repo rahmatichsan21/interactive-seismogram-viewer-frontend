@@ -19,6 +19,7 @@ import {
 
 import useOperationStack from "../hooks/useOperationStack";
 import { toProcessPayload } from "../utils/processingPayload";
+import { attachTraceIdentity } from "../utils/traceIdentity";
 
 // [TEMP DEBUG] Helper ringkas untuk statistik trace (tidak log array penuh).
 function debugStats(values) {
@@ -927,17 +928,11 @@ export default function WaveformViewerPanel({
             processed?.traces?.map(debugTraceSummary)
           );
 
-          return processed.traces.map((trace) => ({
-            ...trace,
-            network: trace.network || loadedRequest.network || "IA",
-            station: trace.station || station,
-            traceId: [
-              trace.network || loadedRequest.network || "IA",
-              trace.station || station,
-              trace.location || "--",
-              trace.channel,
-            ].join("."),
-          }));
+          return attachTraceIdentity(
+            processed.traces,
+            station,
+            loadedRequest.network || "IA"
+          );
         })
       );
       if (processingLoadIdRef.current !== requestLoadId) {
