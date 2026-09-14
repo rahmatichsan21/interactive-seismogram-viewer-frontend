@@ -63,6 +63,7 @@ function WaveformViewer() {
     useState(null);
   const [loadedRequest, setLoadedRequest] =
     useState(null);
+  const [waveformLoadId, setWaveformLoadId] = useState(0);
 
   const [activeTraces, setActiveTraces] = useState([]);
 
@@ -196,21 +197,33 @@ function WaveformViewer() {
 
     return v;
   }
+}
 
-  function attachTraceIdentity(traces, station) {
-    return traces.map((trace) => ({
+function attachTraceIdentity(traces, station) {
+  return traces.map((trace) => {
+    console.log(
+      "[SEGMENT ID DEBUG]",
+      trace.station,
+      trace.channel,
+      trace.segment_index
+    );
+
+    return {
       ...trace,
+
       network: trace.network || selectedNetwork,
       station: trace.station || station,
+
       traceId: [
         trace.network || selectedNetwork,
         trace.station || station,
         trace.location || "--",
         trace.channel,
+        trace.segment_index ?? 0,
       ].join("."),
-    }));
-  }
-
+    };
+  });
+}
   // Nyquist dihitung per station (bukan global) supaya station
   // yang punya sampling_rate berbeda tidak saling menjatuhkan.
   function getStationNyquist(traces, activeTraceIds, station) {
@@ -888,6 +901,6 @@ function WaveformViewer() {
 
     </div>
   );
-}
+
 
 export default WaveformViewer;
