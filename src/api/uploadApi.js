@@ -33,6 +33,14 @@ export async function uploadStationXML(file, sessionId) {
   return response.data;
 }
 
+export async function validateStationXML(sessionId) {
+  const response = await axios.get(
+    `${API_URL}/api/upload/stationxml/${sessionId}/validation`
+  );
+
+  return response.data;
+}
+
 export async function deleteUploadSession(sessionId) {
   await axios.delete(`${API_URL}/api/upload/${sessionId}`);
 }

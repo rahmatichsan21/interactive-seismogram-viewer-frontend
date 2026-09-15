@@ -6,6 +6,7 @@ import WaveformViewerPanel from "./WaveformViewerPanel";
 import {
   uploadMiniSeed,
   uploadStationXML,
+  validateStationXML,
   deleteUploadSession,
   getUploadWaveform,
 } from "../api/uploadApi";
@@ -44,7 +45,9 @@ function normalizeRequestTime(value) {
 export default function LocalFileViewer() {
   const [sessionId, setSessionId] = useState(null);
   const [miniSeedFile, setMiniSeedFile] = useState(null);
-  const [stationXMLFile, setStationXMLFile] = useState(null);
+  const [stationXMLFiles, setStationXMLFiles] = useState([]);
+  const [stationXMLValidation, setStationXMLValidation] =
+    useState(null);
 
   const [originalWaveform, setOriginalWaveform] = useState(null);
   const [loadedRequest, setLoadedRequest] = useState(null);
@@ -60,6 +63,10 @@ export default function LocalFileViewer() {
 
   async function handleMiniSeedFile(file) {
     setMiniSeedFile(file);
+    // StationXML terikat pada session upload. Dataset baru wajib
+    // memakai StationXML baru agar response tidak salah diterapkan.
+    setStationXMLFiles([]);
+    setStationXMLValidation(null);
     setIsUploading(true);
     setUploadError(null);
 
@@ -86,7 +93,10 @@ export default function LocalFileViewer() {
 
       const traces = attachTraceIdentity(
         waveform.traces,
-        data.station,
+        // Setiap trace sudah membawa station dari backend. Jangan
+        // gunakan station response global sebagai fallback karena
+        // local upload dapat berisi beberapa station.
+        "",
         "LOCAL"
       );
 
@@ -97,7 +107,11 @@ export default function LocalFileViewer() {
         channel: "*",
         startTime: normalizeRequestTime(data.start_time),
         endTime: normalizeRequestTime(data.end_time),
-        stations: [data.station],
+        stations: data.stations?.length
+          ? data.stations
+          : [...new Set(
+              traces.map((trace) => trace.station).filter(Boolean)
+            )],
         session_id: data.session_id,
       });
     } catch (error) {
@@ -115,12 +129,15 @@ export default function LocalFileViewer() {
       return;
     }
 
-    setStationXMLFile(file);
+    setStationXMLValidation(null);
     setIsUploading(true);
     setUploadError(null);
 
     try {
-      await uploadStationXML(file, sessionId);
+      const uploadResult = await uploadStationXML(file, sessionId);
+      setStationXMLFiles(uploadResult.filenames ?? [file.name]);
+      const validation = await validateStationXML(sessionId);
+      setStationXMLValidation(validation);
     } catch (error) {
       const message =
         error.response?.data?.detail || "Failed to upload StationXML.";
@@ -137,7 +154,8 @@ export default function LocalFileViewer() {
     prevSessionRef.current = null;
     setSessionId(null);
     setMiniSeedFile(null);
-    setStationXMLFile(null);
+    setStationXMLFiles([]);
+    setStationXMLValidation(null);
     setOriginalWaveform(null);
     setLoadedRequest(null);
   }
@@ -167,8 +185,21 @@ export default function LocalFileViewer() {
                     onFileSelect={handleStationXMLFile}
                     accept="stationxml"
                     label="StationXML"
-                    loaded={!!stationXMLFile}
+                    loaded={stationXMLFiles.length > 0}
                   />
+                  {stationXMLFiles.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        fontSize: "13px",
+                        color: "#166534",
+                      }}
+                    >
+                      {stationXMLFiles.map((filename) => (
+                        <div key={filename}>{filename}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -213,6 +244,7 @@ export default function LocalFileViewer() {
           originalWaveform={originalWaveform}
           loadedRequest={loadedRequest}
           isWaveformLoading={isUploading}
+          stationXMLValidation={stationXMLValidation}
         />
       </main>
   );

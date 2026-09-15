@@ -10,6 +10,7 @@ import StationSelectorModal from "../components/StationSelectorModal";
 import { getChannels, getWaveform, checkWaveformCache, downloadWaveform } from "../api/waveformApi";
 
 import { attachTraceIdentity } from "../utils/traceIdentity";
+import { getDefaultWaveformTimeRange } from "../utils/dateTime";
 import WaveformViewerPanel from "./WaveformViewerPanel";
 
 function normalizeChannelPattern(value) {
@@ -30,6 +31,9 @@ function normalizeChannelPattern(value) {
 }
 
 export default function FdsnViewer() {
+  const [initialTimeRange] = useState(
+    getDefaultWaveformTimeRange
+  );
   const [selectedNetwork, setSelectedNetwork] = useState("IA");
   const [selectedStations, setSelectedStations] = useState([]);
   const [stations, setStations] = useState([]);
@@ -37,10 +41,14 @@ export default function FdsnViewer() {
 
   const [locationPattern, setLocationPattern] = useState("*");
 
-  const [startTime, setStartTime] = useState("2025-07-01T00:00");
+  const [startTime, setStartTime] = useState(
+    initialTimeRange.startTime
+  );
   const [timeMode, setTimeMode] = useState("duration");
   const [duration, setDuration] = useState(5);
-  const [endTime, setEndTime] = useState("2025-07-01T00:05");
+  const [endTime, setEndTime] = useState(
+    initialTimeRange.endTime
+  );
 
   const [originalWaveform, setOriginalWaveform] = useState(null);
   const [loadedRequest, setLoadedRequest] = useState(null);

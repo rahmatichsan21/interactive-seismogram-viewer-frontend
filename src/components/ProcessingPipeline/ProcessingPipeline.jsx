@@ -280,7 +280,7 @@ function ProcessingPipeline({
   waveformEndTime,
   hasWaveform,
   isProcessing,
-  isFiltered = false,
+  stationXMLValidation = null,
   addOperation,
   updateOperation,
   removeOperation,
@@ -475,15 +475,24 @@ function ProcessingPipeline({
       !getPreFiltValidation(operation).valid
   );
 
-  // Block Instrument Correction bila WAVEFORM AKTIF sudah difilter
-  // (committed pipeline punya filter) — bukan hanya draft pipeline.
-  // User harus Remove Filter + Apply agar waveform kembali unfiltered.
   const hasEnabledCorrection = operations.some(
     (operation) =>
       operation.enabled &&
       operation.type === "instrument_correction"
   );
-  const correctionBlocked = isFiltered && hasEnabledCorrection;
+  // Untuk local waveform, Instrument Correction hanya dapat dijalankan
+  // jika StationXML sudah divalidasi dan seluruh station memiliki
+  // response yang cocok. Filter tetap boleh diedit/di-Apply setelah
+  // correction berhasil; urutannya dilindungi oleh `orderInvalid`.
+  const invalidStationXmlStations =
+    hasEnabledCorrection && stationXMLValidation?.checked
+      ? stationXMLValidation.invalid_stations ?? []
+      : [];
+  const stationXmlBlocked =
+    hasEnabledCorrection &&
+    (stationXMLValidation?.is_local === true) &&
+    (!stationXMLValidation.checked ||
+      invalidStationXmlStations.length > 0);
 
   return (
     <section className="processing-pipeline">
@@ -1030,6 +1039,29 @@ function ProcessingPipeline({
         </div>
       )}
 
+      {stationXmlBlocked && (
+        <div className="processing-order-warning">
+          {stationXMLValidation?.filenames?.length ? (
+            <>
+              {"\u26A0"} Instrument Correction tidak dapat dijalankan.
+              StationXML {" "}
+              <strong>{stationXMLValidation.filenames.join(", ")}</strong>
+              {" tidak memiliki response yang cocok untuk: "}
+              <strong>
+                {invalidStationXmlStations
+                  .map((item) => item.station)
+                  .join(", ") || "station pada waveform"}
+              </strong>.
+            </>
+          ) : (
+            <>
+              {"\u26A0"} Upload StationXML terlebih dahulu sebelum
+              menjalankan Instrument Correction.
+            </>
+          )}
+        </div>
+      )}
+
       <div className="processing-action-bar">
         <button
           type="button"
@@ -1048,7 +1080,7 @@ function ProcessingPipeline({
             !hasWaveform ||
             isProcessing ||
             orderInvalid ||
-            correctionBlocked ||
+            stationXmlBlocked ||
             anyCorrectionInvalid
           }
         >

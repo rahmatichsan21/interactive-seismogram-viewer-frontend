@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import Plot from "react-plotly.js";
+import { getTraceDisplayLabel } from "../../utils/traceIdentity";
 
 // [TEMP DEBUG] Ringkasan singkat data yang diterima Plot.
 function debugSummary(traceId, amplitude, startTime, endTime) {
@@ -73,6 +74,7 @@ function WaveformPlot({
     <div className="waveform-list">
       {visibleTraces.map((trace, index) => {
         const traceId = getTraceId(trace);
+        const traceLabel = getTraceDisplayLabel(traceId);
         const startTime = trace.time[0];
         const endTime = trace.time[trace.time.length - 1];
 
@@ -100,7 +102,7 @@ function WaveformPlot({
           );
         }
 
-        const hovertemplate = `<b>${traceId}</b><br>` +
+        const hovertemplate = `<b>${traceLabel}</b><br>` +
           "Time: %{x}<br>Amplitude: %{y}<extra></extra>";
 
         const plotData = [
@@ -109,7 +111,7 @@ function WaveformPlot({
             y: trace.amplitude,
             type: "scatter",
             mode: "lines",
-            name: traceId,
+            name: traceLabel,
             line: { width: 1 },
             hovertemplate,
           },
@@ -159,7 +161,7 @@ function WaveformPlot({
             <div className="waveform-trace-header">
               <div>
                 <span className="waveform-trace-id">
-                  {traceId}
+                  {traceLabel}
                 </span>
 
                 <span className="waveform-trace-component">

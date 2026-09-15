@@ -75,6 +75,17 @@ function getStationNyquist(traces, activeTraceIds, station) {
   return Math.min(...stationSamplingRates) / 2;
 }
 
+function getTraceRequestIdentity(trace) {
+  return {
+    // "LOCAL" hanya fallback tampilan saat MiniSEED tidak memiliki
+    // kode network. Backend perlu wildcard pada kasus tersebut, bukan
+    // literal "LOCAL" yang tidak ada pada stats trace.
+    network: trace.network === "LOCAL" ? "*" : trace.network,
+    station: trace.station,
+    location: trace.location,
+  };
+}
+
 function validateFilterAgainstNyquist(operations, nyquist) {
   if (nyquist == null) {
     return null;
@@ -171,6 +182,7 @@ export default function WaveformViewerPanel({
   loadPhase,
   waveformLoadId,
   waveformWarnings = [],
+  stationXMLValidation = null,
 }) {
   const [isTraceSelectorOpen, setIsTraceSelectorOpen] = useState(false);
   const [processedWaveform, setProcessedWaveform] = useState(null);
@@ -211,6 +223,8 @@ export default function WaveformViewerPanel({
   // sini TIDAK mengubah tampilan waveform. Diinisialisasi dari
   // seluruh visible traces saat menu download dibuka.
   const [downloadSelection, setDownloadSelection] =
+    useState([]);
+  const [stationXmlDownloadSelection, setStationXmlDownloadSelection] =
     useState([]);
 
   // "menu" = daftar pilihan export,
@@ -298,17 +312,6 @@ export default function WaveformViewerPanel({
 
   const committedPipeline = history[pointer] ?? [];
 
-  // Waveform yang sedang aktif (processedWaveform) dihasilkan oleh
-  // committedPipeline (= history[pointer]). Ini sinkron dengan
-  // processedWaveform: keduanya berubah bersama saat Apply/Undo/Redo,
-  // dan TIDAK berubah saat user mengedit draft pipeline (mis. Remove
-  // Filter tanpa Apply). Jadi ini sumber kebenaran "sudah difilter",
-  // bukan pipeline draft.
-  const isFiltered = committedPipeline.some(
-    (operation) =>
-      operation.enabled && operation.type === "filter"
-  );
-
   const activeTrim = committedPipeline.find(
     (operation) =>
       operation.enabled && operation.type === "trim"
@@ -322,27 +325,42 @@ export default function WaveformViewerPanel({
       .filter(Boolean)
   )].sort();
 
-  async function handleDownloadStationXML(station) {
-    if (!loadedRequest?.network || !station) {
+  async function handleDownloadStationXML(stations) {
+    if (!loadedRequest?.network || stations.length === 0) {
       return;
     }
 
     setIsDownloading(true);
-    setDownloadMenuOpen(false);
     try {
-      await downloadStationXML({
-        network: loadedRequest.network,
-        station,
-      });
+      for (const station of stations) {
+        await downloadStationXML({
+          network: loadedRequest.network,
+          station,
+        });
+      }
+      setDownloadMenuOpen(false);
     } catch (error) {
       alert(
         error.response?.data?.detail ||
         error.message ||
-        `Failed to download StationXML for ${station}.`
+        "Failed to download selected StationXML files."
       );
     } finally {
       setIsDownloading(false);
     }
+  }
+
+  function openStationXmlDownload() {
+    setStationXmlDownloadSelection(downloadableStations);
+    setDownloadMode("stationxml");
+  }
+
+  function toggleStationXmlDownload(station) {
+    setStationXmlDownloadSelection((current) =>
+      current.includes(station)
+        ? current.filter((item) => item !== station)
+        : [...current, station]
+    );
   }
 
   async function handleDownloadMiniSeed(traceIds = null) {
@@ -505,14 +523,14 @@ export default function WaveformViewerPanel({
     async function fetchForTrace(trace) {
       const params = {
         channel: trace.channel,
+        ...getTraceRequestIdentity(trace),
       };
 
       if (loadedRequest.session_id) {
         params.session_id = loadedRequest.session_id;
       } else {
         params.network = trace.network || loadedRequest.network || "IA";
-        params.station = trace.station;
-        params.location = loadedRequest.location || "*";
+        params.location = trace.location || loadedRequest.location || "*";
         params.start_time = loadedRequest.startTime;
         params.end_time = loadedRequest.endTime;
       }
@@ -582,6 +600,7 @@ export default function WaveformViewerPanel({
     async function fetchPsdForTrace(trace) {
       const params = {
         channel: trace.channel,
+        ...getTraceRequestIdentity(trace),
       };
 
       if (loadedRequest.session_id) {
@@ -731,14 +750,12 @@ export default function WaveformViewerPanel({
         channelN: family.n.channel,
         channelE: family.e.channel,
         channelZ: family.z.channel,
+        ...getTraceRequestIdentity(family.n),
       };
 
       if (loadedRequest.session_id) {
         params.sessionId = loadedRequest.session_id;
       } else {
-        params.network = family.network;
-        params.station = family.station;
-        params.location = family.location;
         params.startTime = loadedRequest.startTime;
         params.endTime = loadedRequest.endTime;
       }
@@ -882,8 +899,15 @@ export default function WaveformViewerPanel({
         return false;
       }
 
+      // Endpoint local memproses seluruh stream dalam satu session.
+      // Jangan kirim satu request per station karena tiap request akan
+      // mengembalikan seluruh trace lalu menduplikasi hasil.
+      const stationsToProcess = loadedRequest.session_id
+        ? [loadedRequest.stations[0] ?? ""]
+        : loadedRequest.stations;
+
       const processingResults = await Promise.allSettled(
-        loadedRequest.stations.map(async (station) => {
+        stationsToProcess.map(async (station) => {
           const stationNyquist = getStationNyquist(
             displayWaveform?.traces ?? [],
             activeTraces,
@@ -943,7 +967,7 @@ export default function WaveformViewerPanel({
       const failedStations = new Set();
 
       processingResults.forEach((result, index) => {
-        const station = loadedRequest.stations[index];
+        const station = stationsToProcess[index];
 
         if (result.status === "fulfilled") {
           processedTraces.push(...result.value);
@@ -1243,7 +1267,7 @@ export default function WaveformViewerPanel({
                 type="button"
                 className="download-menu-item"
                 disabled={downloadableStations.length === 0 || Boolean(loadedRequest?.session_id)}
-                onClick={() => setDownloadMode("stationxml")}
+                onClick={openStationXmlDownload}
               >
                 Download StationXML
               </button>
@@ -1314,24 +1338,61 @@ export default function WaveformViewerPanel({
           {downloadMenuOpen && downloadMode === "stationxml" && (
             <div className="download-menu">
               <div className="download-menu-title">
-                Select station to export
+                Download StationXML
               </div>
 
-              {downloadableStations.map((station) => (
-                <button
-                  key={station}
-                  type="button"
-                  className="download-menu-item download-menu-download"
-                  disabled={isDownloading}
-                  onClick={() => {
-                    void handleDownloadStationXML(station);
+              <label className="download-menu-item">
+                <input
+                  type="checkbox"
+                  checked={
+                    downloadableStations.length > 0 &&
+                    stationXmlDownloadSelection.length ===
+                      downloadableStations.length
+                  }
+                  onChange={(event) => {
+                    setStationXmlDownloadSelection(
+                      event.target.checked ? downloadableStations : []
+                    );
                   }}
+                />
+                <span>Select All</span>
+              </label>
+
+              {downloadableStations.map((station) => (
+                <label
+                  key={station}
+                  className="download-menu-item"
+                  disabled={isDownloading}
                 >
-                  {station}.xml
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={stationXmlDownloadSelection.includes(station)}
+                    disabled={isDownloading}
+                    onChange={() => toggleStationXmlDownload(station)}
+                  />
+                  <span>{station}.xml</span>
+                </label>
               ))}
 
               <div className="download-menu-divider" />
+
+              <button
+                type="button"
+                className="download-menu-item download-menu-download"
+                disabled={
+                  isDownloading ||
+                  stationXmlDownloadSelection.length === 0
+                }
+                onClick={() => {
+                  void handleDownloadStationXML(
+                    stationXmlDownloadSelection
+                  );
+                }}
+              >
+                {isDownloading
+                  ? "Downloading..."
+                  : "Download Selected"}
+              </button>
 
               <button
                 type="button"
@@ -1394,7 +1455,15 @@ export default function WaveformViewerPanel({
             waveformEndTime={loadedRequest?.endTime}
             hasWaveform={Boolean(originalWaveform)}
             isProcessing={isProcessing}
-            isFiltered={isFiltered}
+            stationXMLValidation={
+              loadedRequest?.session_id
+                ? {
+                    ...stationXMLValidation,
+                    is_local: true,
+                    checked: Boolean(stationXMLValidation),
+                  }
+                : null
+            }
             addOperation={addOperation}
             updateOperation={updateOperation}
             removeOperation={removeOperation}

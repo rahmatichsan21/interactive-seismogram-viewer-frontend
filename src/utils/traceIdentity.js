@@ -23,3 +23,7 @@ export function attachTraceIdentity(traces, station, network = "IA") {
     };
   });
 }
+
+export function getTraceDisplayLabel(traceId) {
+  return traceId.replace(/\.\d+$/, "");
+}

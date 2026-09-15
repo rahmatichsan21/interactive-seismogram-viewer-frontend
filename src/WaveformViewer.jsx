@@ -18,9 +18,13 @@ import {
 } from "./api/waveformApi";
 
 import useOperationStack from "./hooks/useOperationStack";
+import { getDefaultWaveformTimeRange } from "./utils/dateTime";
 import { toProcessPayload } from "./utils/processingPayload";
 
 function WaveformViewer() {
+  const [initialTimeRange] = useState(
+    getDefaultWaveformTimeRange
+  );
   // Network & Station
   const [isTraceSelectorOpen, setIsTraceSelectorOpen] =
   useState(false);
@@ -41,12 +45,12 @@ function WaveformViewer() {
   const [locationPattern, setLocationPattern] = useState("*");
   // Time
   const [startTime, setStartTime] = useState(
-    "2025-07-01T00:00"
+    initialTimeRange.startTime
   );
   const [timeMode, setTimeMode] = useState("duration");
   const [duration, setDuration] = useState(5);
   const [endTime, setEndTime] = useState(
-    "2025-07-01T00:05"
+    initialTimeRange.endTime
   );
 
 
