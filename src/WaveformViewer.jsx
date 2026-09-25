@@ -116,7 +116,7 @@ function WaveformViewer() {
     async function loadStations() {
       try {
         const response = await fetch(
-          "http://127.0.0.1:8000/api/stations"
+          `${API_URL}/api/stations`
         );
 
         if (!response.ok) {

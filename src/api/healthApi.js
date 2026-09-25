@@ -1,6 +1,10 @@
 import axios from "axios";
+import API_URL from "./apiConfig";
 
 export async function getHealth() {
-  const response = await axios.get("http://127.0.0.1:8000/health");
+  const response = await axios.get(
+    `${API_URL}/health`
+  );
+
   return response.data;
 }

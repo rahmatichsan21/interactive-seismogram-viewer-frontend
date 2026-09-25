@@ -21,40 +21,6 @@ import useOperationStack from "../hooks/useOperationStack";
 import { toProcessPayload } from "../utils/processingPayload";
 import { attachTraceIdentity } from "../utils/traceIdentity";
 
-// [TEMP DEBUG] Helper ringkas untuk statistik trace (tidak log array penuh).
-function debugStats(values) {
-  if (!values || !values.length) {
-    return { n: 0, min: null, max: null, std: null };
-  }
-  let n = 0;
-  let min = Infinity;
-  let max = -Infinity;
-  let sum = 0;
-  for (const v of values) {
-    if (!Number.isFinite(v)) continue;
-    if (v < min) min = v;
-    if (v > max) max = v;
-    sum += v;
-    n += 1;
-  }
-  const mean = n ? sum / n : NaN;
-  let ss = 0;
-  for (const v of values) {
-    if (Number.isFinite(v)) ss += (v - mean) ** 2;
-  }
-  return { n, min, max, std: n ? Math.sqrt(ss / n) : NaN };
-}
-
-// [TEMP DEBUG] Ringkasan singkat satu trace.
-function debugTraceSummary(trace) {
-  const st = debugStats(trace?.amplitude);
-  const fmt = (v) => (v == null ? "-" : Number(v).toExponential(3));
-  return (
-    `id=${trace?.traceId} npts=${st.n} ` +
-    `t0=${trace?.time?.[0] ?? "-"} t1=${trace?.time?.[(trace?.time?.length || 1) - 1] ?? "-"} ` +
-    `min=${fmt(st.min)} max=${fmt(st.max)} std=${fmt(st.std)}`
-  );
-}
 
 function getStationNyquist(traces, activeTraceIds, station) {
   const stationSamplingRates = (traces ?? [])
@@ -364,21 +330,21 @@ export default function WaveformViewerPanel({
   }
 
   async function handleDownloadMiniSeed(traceIds = null) {
-    console.log("[DOWNLOAD DEBUG] handleDownloadMiniSeed called:", traceIds);
-    console.log("[DOWNLOAD DEBUG] loadedRequest:", loadedRequest);
-    console.log("[DOWNLOAD DEBUG] visibleTraces:", visibleTraces);
     if (!loadedRequest || visibleTraces.length === 0) {
-      console.log("[DOWNLOAD DEBUG] early return (no request or traces)");
       return;
     }
 
     // Selection eksplisit berbasis trace identity (traceId).
     // traceIds null = seluruh visible traces.
-    const selectedIds = traceIds ? new Set(traceIds) : null;
+    const selectedIds = traceIds
+      ? new Set(traceIds)
+      : null;
 
     const traces = visibleTraces
       .filter(
-        (trace) => !selectedIds || selectedIds.has(trace.traceId)
+        (trace) =>
+          !selectedIds ||
+          selectedIds.has(trace.traceId)
       )
       .map((trace) => ({
         station: trace.station || "*",
@@ -390,30 +356,43 @@ export default function WaveformViewerPanel({
       return;
     }
 
-    const stations = [...new Set(
-      traces.map((trace) => trace.station)
-    )];
-    const channels = [...new Set(
-      traces.map((trace) => trace.channel)
-    )];
-    const isLocal = Boolean(loadedRequest.session_id);
+    const stations = [
+      ...new Set(
+        traces.map((trace) => trace.station)
+      ),
+    ];
+
+    const channels = [
+      ...new Set(
+        traces.map((trace) => trace.channel)
+      ),
+    ];
+
+    const isLocal = Boolean(
+      loadedRequest.session_id
+    );
 
     const payload = {
       source: isLocal ? "local" : "fdsn",
-      network: isLocal ? null : loadedRequest.network,
+      network: isLocal
+        ? null
+        : loadedRequest.network,
       stations: isLocal ? [] : stations,
-      location: loadedRequest.location || "*",
+      location:
+        loadedRequest.location || "*",
       channels,
       traces,
       start_time: loadedRequest.startTime,
       end_time: loadedRequest.endTime,
       trim_start: trimStart,
       trim_end: trimEnd,
-      session_id: loadedRequest.session_id || null,
+      session_id:
+        loadedRequest.session_id || null,
     };
 
     setIsDownloading(true);
     setDownloadMenuOpen(false);
+
     try {
       await downloadMiniSeed(payload);
     } finally {
@@ -842,37 +821,6 @@ export default function WaveformViewerPanel({
     );
   }, [waveformLoadId, waveformKey]);
   
-  // [TEMP DEBUG] Amati processedWaveform & sumber display.
-  const processedObserverSkip = useRef(true);
-  useEffect(() => {
-    if (processedObserverSkip.current) {
-      processedObserverSkip.current = false;
-      return;
-    }
-    console.log("[PROCESS DEBUG] processedWaveform CHANGED");
-    if (processedWaveform == null) {
-      console.log("[PROCESS DEBUG]   -> null (processed HILANG)");
-    } else {
-      console.log(
-        "[PROCESS DEBUG]   -> NON-NULL n_traces=",
-        processedWaveform.traces.length
-      );
-      processedWaveform.traces.forEach((t) =>
-        console.log("[PROCESS DEBUG]     trace:", debugTraceSummary(t))
-      );
-    }
-  }, [processedWaveform]);
-
-  // [TEMP DEBUG] Sumber yang dipakai displayWaveform.
-  useEffect(() => {
-    console.log(
-      "[PROCESS DEBUG] display source =",
-      processedWaveform ? "PROCESSED" : "ORIGINAL",
-      "| processedWaveform =",
-      processedWaveform ? "NON-NULL" : "null"
-    );
-  });
-
   async function postAndUpdatePlot(
     operationsToApply = getActiveOperations()
   ) {
@@ -936,21 +884,7 @@ export default function WaveformViewerPanel({
             payload.session_id = loadedRequest.session_id;
           }
 
-          // [TEMP DEBUG]
-          console.log(
-            "[PROCESS DEBUG] postProcess call station=", station,
-            "ops=", operationsToApply.map((o) => o.type),
-            "payload=", JSON.stringify(payload)
-          );
-
-          const processed = await postProcess(payload);
-
-          // [TEMP DEBUG]
-          console.log(
-            "[PROCESS DEBUG] postProcess OK station=", station,
-            "n_traces=", processed?.traces?.length,
-            processed?.traces?.map(debugTraceSummary)
-          );
+          const processed = await postProcess(payload)
 
           return attachTraceIdentity(
             processed.traces,
@@ -993,15 +927,6 @@ export default function WaveformViewerPanel({
           ...fallbackTraces,
         ];
 
-        // [TEMP DEBUG]
-        console.log(
-          "[PROCESS DEBUG] ABOUT TO SET processedWaveform n=",
-          mergedTraces.length
-        );
-        mergedTraces.forEach((t) =>
-          console.log("[PROCESS DEBUG]   processed:", debugTraceSummary(t))
-        );
-
         setProcessedWaveform({ traces: mergedTraces });
 
         setActiveTraces(
@@ -1029,23 +954,23 @@ export default function WaveformViewerPanel({
   }
 
   async function handleApplyProcessing() {
-    const operationsToApply = getActiveOperations();
-
-    // [TEMP DEBUG]
-    console.log("[PROCESS DEBUG] Apply started");
-    console.log(
-      "[PROCESS DEBUG] operationsToApply =",
-      operationsToApply.map((o) => ({ type: o.type, enabled: o.enabled, params: o.params }))
-    );
+    const operationsToApply =
+      getActiveOperations();
 
     // Validasi urutan: Instrument Correction harus SEBELUM Filter.
     // Jika invalid, tolak Apply tanpa memproses (tidak commit).
-    const filterIdx = operationsToApply.findIndex(
-      (op) => op.type === "filter"
-    );
-    const corrIdx = operationsToApply.findIndex(
-      (op) => op.type === "instrument_correction"
-    );
+    const filterIdx =
+      operationsToApply.findIndex(
+        (op) => op.type === "filter"
+      );
+
+    const corrIdx =
+      operationsToApply.findIndex(
+        (op) =>
+          op.type ===
+          "instrument_correction"
+      );
+
     const orderInvalid =
       corrIdx !== -1 &&
       filterIdx !== -1 &&
@@ -1060,10 +985,10 @@ export default function WaveformViewerPanel({
       return;
     }
 
-    const success = await postAndUpdatePlot(operationsToApply);
-
-    // [TEMP DEBUG]
-    console.log("[PROCESS DEBUG] postAndUpdatePlot success =", success);
+    const success =
+      await postAndUpdatePlot(
+        operationsToApply
+      );
 
     if (success) {
       commit();
@@ -1425,11 +1350,9 @@ export default function WaveformViewerPanel({
                 className="download-menu-item download-menu-download"
                 disabled={downloadSelection.length === 0 || isDownloading}
                 onClick={() => {
-                  console.log(
-                    "[DOWNLOAD DEBUG] download selected:",
+                  void handleDownloadMiniSeed(
                     downloadSelection
                   );
-                  void handleDownloadMiniSeed(downloadSelection);
                 }}
               >
                 Download Selected ({downloadSelection.length})

@@ -8,6 +8,7 @@ import TimeControl from "../components/TimeControl/TimeControl";
 import StationSelectorModal from "../components/StationSelectorModal";
 
 import { getChannels, getWaveform, checkWaveformCache, downloadWaveform } from "../api/waveformApi";
+import API_URL from "../api/apiConfig";
 
 import { attachTraceIdentity } from "../utils/traceIdentity";
 import { getDefaultWaveformTimeRange } from "../utils/dateTime";
@@ -64,7 +65,7 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
     async function loadStations() {
       try {
         const response = await fetch(
-          "http://127.0.0.1:8000/api/stations"
+          `${API_URL}/api/stations`
         );
 
         if (!response.ok) {
@@ -117,6 +118,7 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
 
   async function handleLoadWaveform() {
     setWaveformLoadId((id) => id + 1);
+
     if (selectedStations.length === 0) {
       alert("Select at least one station");
       return;
@@ -125,7 +127,6 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
     const requestEndTime = getFinalEndTime();
     const normalizedChannel = normalizeChannelPattern(channelPattern);
 
-    setWaveformLoadId((id) => id + 1);
     setOriginalWaveform(null);
     setLoadedRequest(null);
     setWaveformWarnings([]);
@@ -165,11 +166,13 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
       const downloadErrors = {};
       if (needsDownload) {
         setLoadPhase("downloading");
+
         const downloadResults = await Promise.allSettled(
           selectedStations.map(async (station) => {
             await downloadWaveform(requestParams(station));
           })
         );
+
         downloadResults.forEach((result, index) => {
           if (result.status === "rejected") {
             downloadErrors[selectedStations[index]] =
@@ -180,18 +183,26 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
 
       // Fase 3: load waveform dari cache/disk ke viewer.
       setLoadPhase("loading");
+
       const waveformResults = await Promise.allSettled(
         selectedStations.map(async (station) => {
           if (downloadErrors[station]) {
             throw new Error(downloadErrors[station]);
           }
-          const waveform = await getWaveform(requestParams(station));
+
+          const waveform = await getWaveform(
+            requestParams(station)
+          );
 
           if (!waveform || !waveform.traces) {
             return [];
           }
 
-          return attachTraceIdentity(waveform.traces, station, selectedNetwork);
+          return attachTraceIdentity(
+            waveform.traces,
+            station,
+            selectedNetwork
+          );
         })
       );
 
@@ -199,23 +210,32 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
       const warnings = [];
 
       waveformResults.forEach((result, index) => {
-      const station = selectedStations[index];
+        const station = selectedStations[index];
 
-      if (result.status === "fulfilled") {
-        successfulTraces.push(...result.value);
-      } else {
-        const errorMessage = result.reason?.message || "Unknown error";
-
-        if (errorMessage === "cannot convert float NaN to integer") {
-          warnings.push(
-            `${station}: Waveform tidak dapat diproses karena terdapat nilai waktu NaN pada trace.`
-          );
+        if (result.status === "fulfilled") {
+          successfulTraces.push(...result.value);
         } else {
-          warnings.push(`${station}: ${errorMessage}`);
+          const errorMessage =
+            result.reason?.message || "Unknown error";
+
+          if (
+            errorMessage ===
+            "cannot convert float NaN to integer"
+          ) {
+            warnings.push(
+              `${station}: Waveform tidak dapat diproses karena terdapat nilai waktu NaN pada trace.`
+            );
+          } else {
+            warnings.push(
+              `${station}: ${errorMessage}`
+            );
+          }
         }
-      }
-    });
-      const combinedWaveform = { traces: successfulTraces };
+      });
+
+      const combinedWaveform = {
+        traces: successfulTraces,
+      };
 
       const loadedStations = [
         ...new Set(
@@ -237,7 +257,10 @@ const [waveformWarnings, setWaveformWarnings] = useState([]);
         stations: loadedStations,
       });
     } catch (error) {
-      console.error("Failed to load waveform:", error);
+      console.error(
+        "Failed to load waveform:",
+        error
+      );
     } finally {
       setIsWaveformLoading(false);
       setLoadPhase(null);

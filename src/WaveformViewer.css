@@ -227,7 +227,7 @@ body {
 
 .source-grid {
   display: grid;
-  grid-template-columns: 0.7fr 1.3fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -301,14 +301,19 @@ body {
   display: grid;
 
   grid-template-columns:
-    minmax(220px, 1.4fr)
-    minmax(140px, 0.8fr)
-    minmax(140px, 0.8fr);
+    minmax(0, 1fr)
+    minmax(150px, 0.72fr)
+    minmax(0, 1fr);
 
   gap: 16px;
 }
 
 .time-field {
+  min-width: 0;
+}
+
+.time-field input[type="datetime-local"] {
+  width: 100%;
   min-width: 0;
 }
 

@@ -1,33 +1,5 @@
-import { useRef } from "react";
 import Plot from "react-plotly.js";
 import { getTraceDisplayLabel } from "../../utils/traceIdentity";
-
-// [TEMP DEBUG] Ringkasan singkat data yang diterima Plot.
-function debugSummary(traceId, amplitude, startTime, endTime) {
-  if (!amplitude || !amplitude.length) {
-    return `[PROCESS DEBUG] WaveformPlot received id=${traceId} npts=0`;
-  }
-  let n = 0, min = Infinity, max = -Infinity, sum = 0;
-  for (const v of amplitude) {
-    if (!Number.isFinite(v)) continue;
-    if (v < min) min = v;
-    if (v > max) max = v;
-    sum += v;
-    n += 1;
-  }
-  const mean = sum / n;
-  let ss = 0;
-  for (const v of amplitude) {
-    if (Number.isFinite(v)) ss += (v - mean) ** 2;
-  }
-  const std = Math.sqrt(ss / n);
-  const fmt = (v) => (v == null ? "-" : Number(v).toExponential(3));
-  return (
-    `[PROCESS DEBUG] WaveformPlot received id=${traceId} npts=${n} ` +
-    `t0=${startTime} t1=${endTime} ` +
-    `min=${fmt(min)} max=${fmt(max)} std=${fmt(std)}`
-  );
-}
 
 function WaveformPlot({
   waveformData,
@@ -67,8 +39,6 @@ function WaveformPlot({
       activeTraces.includes(getTraceId(trace))
   );
 
-  // [TEMP DEBUG] Hanya log saat data trace benar-benar berubah.
-  const lastDebugSig = useRef({});
 
   return (
     <div className="waveform-list">
@@ -91,15 +61,6 @@ function WaveformPlot({
           if (value > maxAmplitude) {
             maxAmplitude = value;
           }
-        }
-
-        // [TEMP DEBUG]
-        const sig = `${traceId}|${amplitude.length}|${minAmplitude}|${maxAmplitude}`;
-        if (lastDebugSig.current[traceId] !== sig) {
-          lastDebugSig.current[traceId] = sig;
-          console.log(
-            debugSummary(traceId, amplitude, startTime, endTime)
-          );
         }
 
         const hovertemplate = `<b>${traceLabel}</b><br>` +
