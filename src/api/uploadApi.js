@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = "http://127.0.0.1:8000";
+import API_URL from "./apiConfig";
 
 export async function uploadMiniSeed(file) {
   const formData = new FormData();
