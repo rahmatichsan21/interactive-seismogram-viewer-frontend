@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { addMinutesToDateTimeLocal } from "../../utils/dateTime";
 
 function TimeControl({
   startTime,
@@ -34,13 +33,6 @@ function TimeControl({
     setDurationInput(String(clampedValue));
   }
 
-  function handleStartTimeChange(nextStartTime) {
-    setStartTime(nextStartTime);
-    setEndTime(
-      addMinutesToDateTimeLocal(nextStartTime, 1)
-    );
-  }
-
   return (
     <div className="time-control">
       <div className="time-field time-start">
@@ -50,9 +42,7 @@ function TimeControl({
           type="datetime-local"
           value={startTime}
           disabled={disabled}
-          onChange={(e) =>
-            handleStartTimeChange(e.target.value)
-          }
+          onChange={(e) => setStartTime(e.target.value)}
         />
       </div>
 
