@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./ViewerSidebar.css";
 
 const MONITORING_STATION_URL = (
@@ -66,12 +66,8 @@ function Icon({ name, size = 20 }) {
         <path d="M9 3v15M15 6v15" />
       </>
     ),
-    performance: (
-      <path d="M3 12h4l3-8 4 16 3-8h4" />
-    ),
-    waveform: (
-      <path d="M2 12h3l2-6 3 12 3-9 3 6 2-3h4" />
-    ),
+    performance: <path d="M3 12h4l3-8 4 16 3-8h4" />,
+    waveform: <path d="M2 12h3l2-6 3 12 3-9 3 6 2-3h4" />,
     inventory: (
       <>
         <path d="m12 3 9 5-9 5-9-5z" />
@@ -105,6 +101,28 @@ export default function ViewerSidebar({
   onModeSelect,
 }) {
   const [waveformExpanded, setWaveformExpanded] = useState(true);
+  const sidebarRef = useRef(null);
+
+  useEffect(() => {
+    if (collapsed) {
+      return;
+    }
+
+    function handlePointerDown(event) {
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target)
+      ) {
+        onToggle();
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [collapsed, onToggle]);
 
   function renderMonitoringItem(item) {
     const href = getMonitoringStationUrl(item.path);
@@ -116,11 +134,9 @@ export default function ViewerSidebar({
         href={href || undefined}
         aria-disabled={!href}
         title={
-          collapsed
-            ? item.label
-            : !href
-              ? "VITE_MONITORING_STATION_URL belum dikonfigurasi"
-              : undefined
+          !href
+            ? "VITE_MONITORING_STATION_URL belum dikonfigurasi"
+            : undefined
         }
         onClick={(event) => {
           if (!href) {
@@ -129,107 +145,106 @@ export default function ViewerSidebar({
         }}
       >
         <Icon name={item.icon} />
-        {!collapsed && <span>{item.label}</span>}
+        <span>{item.label}</span>
       </a>
     );
   }
 
   return (
-    <aside className={`wv-sidebar ${collapsed ? "is-collapsed" : ""}`}>
+    <aside
+      ref={sidebarRef}
+      className={`wv-sidebar ${collapsed ? "is-collapsed" : ""}`}
+    >
       <div className="wv-sidebar-brand">
-        <div className="wv-brand-mark" aria-hidden="true">
-          <Icon name="waveform" size={25} />
-        </div>
-
         {!collapsed && (
-          <div className="wv-brand-copy">
-            <strong>Monitoring Station</strong>
-            <span>BMKG</span>
-          </div>
+          <>
+            <div className="wv-brand-mark" aria-hidden="true">
+              <Icon name="waveform" size={25} />
+            </div>
+
+            <div className="wv-brand-copy">
+              <strong>Monitoring Station</strong>
+              <span>BMKG</span>
+            </div>
+          </>
         )}
+
+        <button
+          type="button"
+          className="wv-sidebar-toggle"
+          onClick={onToggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <Icon name="menu" />
+        </button>
       </div>
 
-      <button
-        type="button"
-        className="wv-sidebar-toggle"
-        onClick={onToggle}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        <Icon name="menu" />
-        {!collapsed && <span>Collapse menu</span>}
-      </button>
+      {!collapsed && (
+        <nav className="wv-sidebar-nav" aria-label="Main navigation">
+          {/* Monitoring Station */}
+          {monitoringItems.map(renderMonitoringItem)}
 
-      <nav className="wv-sidebar-nav" aria-label="Main navigation">
-        {monitoringItems.map(renderMonitoringItem)}
+          {/* Inventaris Alat */}
+          {INVENTARIS_ALAT_URL && (
+            <a
+              className="wv-nav-item"
+              href={INVENTARIS_ALAT_URL}
+            >
+              <Icon name="inventory" />
+              <span>Inventaris Alat</span>
+            </a>
+          )}
 
-        <div className="wv-nav-group">
-          <button
-            type="button"
-            className={`wv-nav-item wv-nav-parent ${
-              activePage ? "is-current" : ""
-            }`}
-            onClick={() => {
-              if (collapsed) {
-                onToggle();
-                setWaveformExpanded(true);
-                return;
-              }
+          {/* Waveform Viewer */}
+          <div className="wv-nav-group">
+            <button
+              type="button"
+              className={`wv-nav-item wv-nav-parent ${
+                activePage ? "is-current" : ""
+              }`}
+              onClick={() => {
+                setWaveformExpanded((value) => !value);
+              }}
+              aria-expanded={waveformExpanded}
+            >
+              <Icon name="waveform" />
+              <span>Waveform Viewer</span>
 
-              setWaveformExpanded((value) => !value);
-            }}
-            aria-expanded={!collapsed && waveformExpanded}
-            title={collapsed ? "Waveform Viewer" : undefined}
-          >
-            <Icon name="waveform" />
-            {!collapsed && <span>Waveform Viewer</span>}
-
-            {!collapsed && (
               <span className="wv-nav-chevron">
                 <Icon
                   name={waveformExpanded ? "down" : "chevron"}
                   size={16}
                 />
               </span>
+            </button>
+
+            {waveformExpanded && (
+              <div className="wv-subnav">
+                <button
+                  type="button"
+                  className={`wv-subnav-item ${
+                    activePage === "fdsn" ? "is-active" : ""
+                  }`}
+                  onClick={() => onModeSelect("fdsn")}
+                >
+                  FDSN
+                </button>
+
+                <button
+                  type="button"
+                  className={`wv-subnav-item ${
+                    activePage === "local" ? "is-active" : ""
+                  }`}
+                  onClick={() => onModeSelect("local")}
+                >
+                  Local File
+                </button>
+              </div>
             )}
-          </button>
-
-          {!collapsed && waveformExpanded && (
-            <div className="wv-subnav">
-              <button
-                type="button"
-                className={`wv-subnav-item ${
-                  activePage === "fdsn" ? "is-active" : ""
-                }`}
-                onClick={() => onModeSelect("fdsn")}
-              >
-                FDSN
-              </button>
-
-              <button
-                type="button"
-                className={`wv-subnav-item ${
-                  activePage === "local" ? "is-active" : ""
-                }`}
-                onClick={() => onModeSelect("local")}
-              >
-                Local File
-              </button>
-            </div>
-          )}
-        </div>
-
-        {INVENTARIS_ALAT_URL && (
-          <a
-            className="wv-nav-item"
-            href={INVENTARIS_ALAT_URL}
-            title={collapsed ? "Inventaris Alat" : undefined}
-          >
-            <Icon name="inventory" />
-            {!collapsed && <span>Inventaris Alat</span>}
-          </a>
-        )}
-      </nav>
+          </div>
+        </nav>
+      )}
     </aside>
   );
 }

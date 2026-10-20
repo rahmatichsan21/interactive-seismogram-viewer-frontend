@@ -23,13 +23,47 @@
 
 .wv-sidebar-brand {
   min-height: 64px;
-  padding: 12px 14px;
+  padding: 12px 10px 12px 14px;
 
   display: flex;
   align-items: center;
   gap: 10px;
 
   border-bottom: 1px solid #374151;
+  flex-shrink: 0;
+}
+
+.wv-sidebar-brand .wv-brand-copy {
+  flex: 1;
+}
+
+.wv-sidebar-brand .wv-sidebar-toggle {
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  margin: 0 0 0 auto;
+  padding: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+
+  flex-shrink: 0;
+}
+
+.wv-sidebar-brand .wv-sidebar-toggle span {
+  display: none;
+}
+
+.wv-sidebar.is-collapsed .wv-sidebar-brand {
+  justify-content: center;
+  padding: 10px 6px;
+  gap: 0;
+}
+
+.wv-sidebar.is-collapsed .wv-sidebar-brand .wv-sidebar-toggle {
+  margin: 0;
 }
 
 .wv-brand-mark {
@@ -62,22 +96,12 @@
 }
 
 .wv-sidebar-toggle {
-  min-height: 44px;
-  margin: 8px 8px 4px;
-  padding: 0 12px;
-
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
-
   border: 0;
   border-radius: 6px;
   background: transparent;
   color: #d1d5db;
 
   font: inherit;
-  font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -86,12 +110,9 @@
 .wv-sidebar-toggle:focus-visible {
   background: #374151;
   color: #ffffff;
+  outline: none;
 }
 
-.wv-sidebar.is-collapsed .wv-sidebar-toggle {
-  justify-content: center;
-  padding: 0;
-}
 
 .wv-sidebar-nav {
   flex: 1;
