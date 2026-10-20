@@ -1,5 +1,10 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+@font-face {
+  font-family: 'Montserrat';
+  src: url('../public/fonts/Montserrat%5Bwght%5D.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
 
 * {
   margin: 0;
@@ -8,5 +13,12 @@
 }
 
 body {
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat';
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }

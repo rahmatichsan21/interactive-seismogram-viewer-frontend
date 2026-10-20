@@ -5,7 +5,7 @@
 body {
   margin: 0;
   background: #f3f4f6;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat';
   color: #1f2937;
 }
 
@@ -1383,7 +1383,7 @@ body {
 .wv-shell .topbar-time {
   min-width: 0;
   color: #4b5563;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat';
   font-size: 16px;
   font-weight: 600;
 }
@@ -1412,7 +1412,7 @@ body {
 .wv-shell .waveform-header h2,
 .wv-shell .waveform-trace-id {
   color: #1f2937;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Montserrat';
 }
 
 .wv-shell .section-heading p,
