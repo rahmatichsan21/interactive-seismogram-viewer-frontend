@@ -184,12 +184,15 @@ export default function WaveformViewerPanel({
   const [isDownloading, setIsDownloading] =
     useState(false);
     
-  // Snapshot trace yang dipilih untuk Download MiniSEED.
-  // Terpisah dari activeTraces (Waveform display) — perubahan di
-  // sini TIDAK mengubah tampilan waveform. Diinisialisasi dari
-  // seluruh visible traces saat menu download dibuka.
-  const [downloadSelection, setDownloadSelection] =
-    useState([]);
+  // MiniSEED and PNG have selections independent from waveform display.
+  const [downloadSelection, setDownloadSelection] = useState([]);
+  const [pngSelection, setPngSelection] = useState([]);
+  const [pngExportTypes, setPngExportTypes] = useState({
+    waveform: true,
+    spectrogram: true,
+    psd: true,
+    hvsr: true,
+  });
   const [stationXmlDownloadSelection, setStationXmlDownloadSelection] =
     useState([]);
 
@@ -220,16 +223,24 @@ export default function WaveformViewerPanel({
   } = useOperationStack();
 
   const displayWaveform = processedWaveform ?? originalWaveform;
+  const allTraces = displayWaveform?.traces ?? [];
 
-  const visibleTraceIds = activeTraces.length > 0
-    ? activeTraces
-    : (displayWaveform?.traces ?? []).map(
-        (trace) => trace.traceId
-      );
+  // Hanya trace yang dipilih untuk ditampilkan di waveform.
+  const activeTraceIdSet = new Set(activeTraces);
 
-  const visibleTraces = displayWaveform?.traces?.filter(
-    (trace) => visibleTraceIds.includes(trace.traceId)
-  ) ?? [];
+  const visibleTraces = allTraces.filter((trace) =>
+    activeTraceIdSet.has(trace.traceId)
+  );
+
+  // PNG selector reuses the same trace identities and checkbox matrix
+  // as Waveform Traces. It does not control which traces are displayed.
+  const pngSelectedTraces = allTraces.filter((trace) =>
+    pngSelection.includes(trace.traceId)
+  );
+
+  const pngSelectedTraceIds = pngSelectedTraces.map(
+    (trace) => trace.traceId
+  );
 
   // Global/Common Amplitude Scale untuk Normalize.
   // Dihitung di level ini (yang melihat SEMUA visible trace),
@@ -329,23 +340,23 @@ export default function WaveformViewerPanel({
     );
   }
 
-  async function handleDownloadMiniSeed(traceIds = null) {
-    if (!loadedRequest || visibleTraces.length === 0) {
+async function handleDownloadMiniSeed(
+    traceIds = downloadSelection
+  ) {
+    // Gunakan seluruh trace yang tersedia pada dataset,
+    // bukan hanya trace yang sedang terlihat di waveform.
+    const exportTraces = allTraces;
+
+    if (!loadedRequest || exportTraces.length === 0) {
       return;
     }
 
-    // Selection eksplisit berbasis trace identity (traceId).
-    // traceIds null = seluruh visible traces.
-    const selectedIds = traceIds
-      ? new Set(traceIds)
-      : null;
+    const selectedIds = new Set(traceIds ?? []);
 
-    const traces = visibleTraces
-      .filter(
-        (trace) =>
-          !selectedIds ||
-          selectedIds.has(trace.traceId)
-      )
+    // Pertahankan identitas setiap trace, termasuk station,
+    // location, dan channel, untuk payload backend.
+    const traces = exportTraces
+      .filter((trace) => selectedIds.has(trace.traceId))
       .map((trace) => ({
         station: trace.station || "*",
         location: trace.location || "*",
@@ -357,37 +368,28 @@ export default function WaveformViewerPanel({
     }
 
     const stations = [
-      ...new Set(
-        traces.map((trace) => trace.station)
-      ),
+      ...new Set(traces.map((trace) => trace.station)),
     ];
 
     const channels = [
-      ...new Set(
-        traces.map((trace) => trace.channel)
-      ),
+      ...new Set(traces.map((trace) => trace.channel)),
     ];
 
-    const isLocal = Boolean(
-      loadedRequest.session_id
-    );
+    const isLocal = Boolean(loadedRequest.session_id);
 
+    // Pertahankan kontrak payload endpoint MiniSEED yang sudah ada.
     const payload = {
       source: isLocal ? "local" : "fdsn",
-      network: isLocal
-        ? null
-        : loadedRequest.network,
+      network: isLocal ? null : loadedRequest.network,
       stations: isLocal ? [] : stations,
-      location:
-        loadedRequest.location || "*",
+      location: loadedRequest.location || "*",
       channels,
       traces,
       start_time: loadedRequest.startTime,
       end_time: loadedRequest.endTime,
       trim_start: trimStart,
       trim_end: trimEnd,
-      session_id:
-        loadedRequest.session_id || null,
+      session_id: loadedRequest.session_id || null,
     };
 
     setIsDownloading(true);
@@ -395,89 +397,171 @@ export default function WaveformViewerPanel({
 
     try {
       await downloadMiniSeed(payload);
+    } catch (error) {
+      alert(
+        error.response?.data?.detail ||
+          error.message ||
+          "Failed to download MiniSEED."
+      );
     } finally {
       setIsDownloading(false);
     }
   }
 
-  // Download PNG untuk SEMUA waveform trace yang sedang ditampilkan.
-  // Satu displayed trace = satu file PNG (Plotly.toImage pada plot yang
-  // benar-benar dirender). Tidak ada PNG gabungan/multi-trace.
-  async function handleDownloadPng() {
-    for (const trace of visibleTraces) {
-      const gd = waveformPlotRefs.current[trace.traceId];
-      if (!gd) {
+  async function handleDownloadPng(
+    tracesToExport = pngSelectedTraces
+  ) {
+    for (const trace of tracesToExport) {
+      const plot = waveformPlotRefs.current[trace.traceId];
+
+      // Lewati trace jika plot-nya belum tersedia.
+      if (!plot) {
         continue;
       }
 
-      const url = await Plotly.toImage(gd, {
-        format: "png",
-        scale: 1,
-      });
+      try {
+        const url = await Plotly.toImage(plot, {
+          format: "png",
+          scale: 1,
+        });
 
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `${trace.traceId}.png`;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `${trace.traceId}.png`;
+
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      } catch (error) {
+        console.error(
+          `Failed to export waveform PNG for ${trace.traceId}:`,
+          error
+        );
+      }
     }
 
     setDownloadMenuOpen(false);
   }
 
-  // Download data-URL PNG (base64) yang sudah tersedia di state —
-  // tidak ada request API baru dan tidak ada grafik yang digenerate
-  // ulang. Dipakai untuk Spectrogram/PSD/HVSR di submenu Download PNG.
   function downloadBase64Png(base64, filename) {
+    if (!base64) {
+      return;
+    }
+
     const anchor = document.createElement("a");
     anchor.href = `data:image/png;base64,${base64}`;
     anchor.download = filename;
+
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
   }
 
-  // Download PNG Spectrogram untuk setiap visible trace yang
-  // gambarnya sudah tersedia di state `spectrograms`.
-  function handleDownloadSpectrogramPng() {
-    for (const trace of visibleTraces) {
+  function handleDownloadSpectrogramPng(
+    tracesToExport = pngSelectedTraces
+  ) {
+    for (const trace of tracesToExport) {
       const base64 = spectrograms[trace.traceId];
+
+      // Hanya ekspor image yang benar-benar tersedia.
       if (!base64) {
         continue;
       }
-      downloadBase64Png(base64, `${trace.traceId}_spectrogram.png`);
+
+      downloadBase64Png(
+        base64,
+        `${trace.traceId}_spectrogram.png`
+      );
     }
 
     setDownloadMenuOpen(false);
   }
 
-  // Download PNG PSD untuk setiap visible trace yang gambarnya
-  // sudah tersedia di state `psds`.
-  function handleDownloadPsdPng() {
-    for (const trace of visibleTraces) {
+  function handleDownloadPsdPng(
+    tracesToExport = pngSelectedTraces
+  ) {
+    for (const trace of tracesToExport) {
       const base64 = psds[trace.traceId]?.psd_image;
+
+      // Hanya ekspor image PSD yang benar-benar tersedia.
       if (!base64) {
         continue;
       }
-      downloadBase64Png(base64, `${trace.traceId}_psd.png`);
+
+      downloadBase64Png(
+        base64,
+        `${trace.traceId}_psd.png`
+      );
     }
 
     setDownloadMenuOpen(false);
   }
 
-  // Download PNG HVSR untuk setiap family (N/E/Z) yang gambarnya
-  // sudah tersedia di state `hvsrs`.
-  function handleDownloadHvsrPng() {
+  function handleDownloadHvsrPng(
+    selectedTraceIds = pngSelectedTraceIds
+  ) {
+    const selected = new Set(selectedTraceIds);
+
     for (const family of hvsrFamilies) {
+      // HVSR hanya berlaku untuk family yang mempunyai N, E, dan Z.
+      if (
+        !family.complete ||
+        !family.n ||
+        !family.e ||
+        !family.z
+      ) {
+        continue;
+      }
+
+      const familyIds = [
+        family.n.traceId,
+        family.e.traceId,
+        family.z.traceId,
+      ];
+
+      // Ketiga komponen harus terpilih sebagai satu family.
+      if (!familyIds.every((id) => selected.has(id))) {
+        continue;
+      }
+
       const base64 = hvsrs[family.groupKey]?.hvsr_image;
+
+      // Lewati family yang belum mempunyai image HVSR.
       if (!base64) {
         continue;
       }
-      downloadBase64Png(base64, `${family.groupKey}_hvsr.png`);
+
+      downloadBase64Png(
+        base64,
+        `${family.groupKey}_hvsr.png`
+      );
     }
 
     setDownloadMenuOpen(false);
+  }
+
+  async function handleDownloadSelectedPng() {
+    if (pngSelectedTraces.length === 0) {
+      return;
+    }
+
+    // Each export type remains independent. Export handlers skip plots
+    // or images that are not available yet.
+    if (pngExportTypes.waveform) {
+      await handleDownloadPng(pngSelectedTraces);
+    }
+
+    if (pngExportTypes.spectrogram) {
+      handleDownloadSpectrogramPng(pngSelectedTraces);
+    }
+
+    if (pngExportTypes.psd) {
+      handleDownloadPsdPng(pngSelectedTraces);
+    }
+
+    if (pngExportTypes.hvsr) {
+      handleDownloadHvsrPng(pngSelectedTraceIds);
+    }
   }
 
   const visibleChannelKey = visibleTraces
@@ -705,6 +789,19 @@ export default function WaveformViewerPanel({
     return families;
   }, [stationGroups]);
 
+  const hvsrTraceCandidates = useMemo(
+    () =>
+      hvsrFamilies
+        .filter((family) => family.complete)
+        .flatMap((family) => [
+          family.n,
+          family.e,
+          family.z,
+        ])
+        .filter(Boolean),
+    [hvsrFamilies]
+  );
+
   useEffect(() => {
     if (!hvsrEnabled || !loadedRequest) {
       return undefined;
@@ -804,8 +901,7 @@ export default function WaveformViewerPanel({
     : null;
 
   useEffect(() => {
-    // Setiap Load Waveform baru harus membuang state
-    // processing dari waveform sebelumnya.
+    // Reset processing and download selections for a newly loaded dataset.
     setProcessedWaveform(null);
     setProcessingErrors([]);
     setAmplitudeScale(1);
@@ -813,12 +909,31 @@ export default function WaveformViewerPanel({
 
     if (!originalWaveform || !loadedRequest) {
       setActiveTraces([]);
+      setDownloadSelection([]);
+      setPngSelection([]);
+      setPngExportTypes({
+        waveform: true,
+        spectrogram: true,
+        psd: true,
+        hvsr: true,
+      });
       return;
     }
 
-    setActiveTraces(
-      originalWaveform.traces.map((trace) => trace.traceId)
+    const initialTraceIds = (originalWaveform.traces ?? []).map(
+      (trace) => trace.traceId
     );
+
+    // All traces are selected by default for display and downloads.
+    setActiveTraces(initialTraceIds);
+    setDownloadSelection(initialTraceIds);
+    setPngSelection(initialTraceIds);
+    setPngExportTypes({
+      waveform: true,
+      spectrogram: true,
+      psd: true,
+      hvsr: true,
+    });
   }, [waveformLoadId, waveformKey]);
   
   async function postAndUpdatePlot(
@@ -1083,15 +1198,17 @@ export default function WaveformViewerPanel({
         </span>
       </button>
 
-      {isTraceSelectorOpen && (
-        <div className="trace-sticky-content">
-          <TraceSelectorMatrix
-            traces={visibleTraces}
-            selectedTraceIds={activeTraces}
-            onSelectionChange={setActiveTraces}
-          />
-        </div>
-      )}
+      <div
+        className="trace-sticky-content"
+        hidden={!isTraceSelectorOpen}
+      >
+        <TraceSelectorMatrix
+          traces={allTraces}
+          selectedTraceIds={activeTraces}
+          onSelectionChange={setActiveTraces}
+          resetKey={waveformKey}
+        />
+      </div>
 
       <div className="sticky-amplitude-section">
         <AmplitudeControl
@@ -1152,12 +1269,19 @@ export default function WaveformViewerPanel({
             className="spectrogram-toggle"
             disabled={isDownloading}
             onClick={() => {
-              // Snapshot seluruh visible traces saat menu
-              // dibuka (terpisah dari activeTraces).
               if (!downloadMenuOpen) {
-                setDownloadSelection(
-                  visibleTraces.map((trace) => trace.traceId)
+                const allTraceIds = allTraces.map(
+                  (trace) => trace.traceId
                 );
+
+                setDownloadSelection(allTraceIds);
+                setPngSelection(allTraceIds);
+                setPngExportTypes({
+                  waveform: true,
+                  spectrogram: true,
+                  psd: true,
+                  hvsr: true,
+                });
                 setDownloadMode("menu");
               }
               setDownloadMenuOpen((open) => !open);
@@ -1173,7 +1297,16 @@ export default function WaveformViewerPanel({
               <button
                 type="button"
                 className="download-menu-item"
-                onClick={() => setDownloadMode("png")}
+                onClick={() => {
+                  setPngSelection(allTraces.map((trace) => trace.traceId));
+                  setPngExportTypes({
+                    waveform: true,
+                    spectrogram: true,
+                    psd: true,
+                    hvsr: true,
+                  });
+                  setDownloadMode("png");
+                }}
               >
                 PNG ▸
               </button>
@@ -1183,7 +1316,12 @@ export default function WaveformViewerPanel({
               <button
                 type="button"
                 className="download-menu-item"
-                onClick={() => setDownloadMode("miniseed")}
+                onClick={() => {
+                  setDownloadSelection(
+                    allTraces.map((trace) => trace.traceId)
+                  );
+                  setDownloadMode("miniseed");
+                }}
               >
                 Download MiniSEED
               </button>
@@ -1205,50 +1343,75 @@ export default function WaveformViewerPanel({
                 Download PNG
               </div>
 
-              <button
-                type="button"
-                className="download-menu-item"
-                onClick={() => {
-                  void handleDownloadPng();
-                }}
-              >
-                Waveform
-              </button>
+              <label className="download-menu-item">
+                <input
+                  type="checkbox"
+                  checked={Object.values(pngExportTypes).every(Boolean)}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setPngExportTypes({
+                      waveform: checked,
+                      spectrogram: checked,
+                      psd: checked,
+                      hvsr: checked,
+                    });
+                  }}
+                />
+                <span>Select All Export Types</span>
+              </label>
 
-              <button
-                type="button"
-                className="download-menu-item"
-                disabled={!spectrogramEnabled}
-                onClick={() => {
-                  handleDownloadSpectrogramPng();
-                }}
-              >
-                Spectrogram
-              </button>
-
-              <button
-                type="button"
-                className="download-menu-item"
-                disabled={!psdEnabled}
-                onClick={() => {
-                  handleDownloadPsdPng();
-                }}
-              >
-                PSD
-              </button>
-
-              <button
-                type="button"
-                className="download-menu-item"
-                disabled={!hvsrEnabled}
-                onClick={() => {
-                  handleDownloadHvsrPng();
-                }}
-              >
-                HVSR
-              </button>
+              {[
+                ["waveform", "Waveform"],
+                ["spectrogram", "Spectrogram"],
+                ["psd", "PSD"],
+                ["hvsr", "HVSR"],
+              ].map(([key, label]) => (
+                <label key={key} className="download-menu-item">
+                  <input
+                    type="checkbox"
+                    checked={pngExportTypes[key]}
+                    onChange={(event) => {
+                      setPngExportTypes((current) => ({
+                        ...current,
+                        [key]: event.target.checked,
+                      }));
+                    }}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
 
               <div className="download-menu-divider" />
+
+              <div className="download-menu-title">
+                Select traces
+              </div>
+
+              <div className="download-menu-matrix">
+                <TraceSelectorMatrix
+                  traces={allTraces}
+                  selectedTraceIds={pngSelection}
+                  onSelectionChange={setPngSelection}
+                  resetKey={waveformKey}
+                />
+              </div>
+
+              <div className="download-menu-divider" />
+
+              <button
+                type="button"
+                className="download-menu-item download-menu-download"
+                disabled={
+                  isDownloading ||
+                  pngSelection.length === 0 ||
+                  !Object.values(pngExportTypes).some(Boolean)
+                }
+                onClick={() => {
+                  void handleDownloadSelectedPng();
+                }}
+              >
+                Download Selected
+              </button>
 
               <button
                 type="button"
@@ -1337,9 +1500,10 @@ export default function WaveformViewerPanel({
 
               <div className="download-menu-matrix">
                 <TraceSelectorMatrix
-                  traces={visibleTraces}
+                  traces={allTraces}
                   selectedTraceIds={downloadSelection}
                   onSelectionChange={setDownloadSelection}
+                  resetKey={waveformKey}
                 />
               </div>
 

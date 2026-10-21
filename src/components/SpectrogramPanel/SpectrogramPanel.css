@@ -65,8 +65,33 @@
   cursor: pointer;
 }
 
-.download-menu-item:hover {
-  background: #f1f5f9;
+.download-menu-item:has(> select) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: default;
+}
+
+.download-menu-item:has(> select):hover {
+  background: transparent;
+}
+
+.download-menu-item > select {
+  flex: 0 1 150px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #dbe3ee;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+  cursor: pointer;
+}
+
+.download-menu-item > select:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
 }
 
 .download-menu-divider {
