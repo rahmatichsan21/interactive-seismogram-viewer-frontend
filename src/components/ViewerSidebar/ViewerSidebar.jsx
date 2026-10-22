@@ -209,18 +209,6 @@ export default function ViewerSidebar({
         {/* Monitoring Station */}
         {monitoringItems.map(renderMonitoringItem)}
 
-        {/* Inventaris Alat */}
-        {INVENTARIS_ALAT_URL && (
-          <a
-            className="wv-nav-item"
-            href={INVENTARIS_ALAT_URL}
-            title={collapsed ? "Inventaris Alat" : undefined}
-          >
-            <Icon name="inventory" className="wv-nav-icon" />
-            <span className="wv-nav-label">Inventaris Alat</span>
-          </a>
-        )}
-
         {/* Waveform Viewer */}
         <div className="wv-nav-group">
           <button
@@ -283,6 +271,18 @@ export default function ViewerSidebar({
             </div>
           )}
         </div>
+
+        {/* Inventaris Alat */}
+        {INVENTARIS_ALAT_URL && (
+          <a
+            className="wv-nav-item"
+            href={INVENTARIS_ALAT_URL}
+            title={collapsed ? "Inventaris Alat" : undefined}
+          >
+            <Icon name="inventory" className="wv-nav-icon" />
+            <span className="wv-nav-label">Inventaris Alat</span>
+          </a>
+        )}
       </nav>
     </aside>
   );
