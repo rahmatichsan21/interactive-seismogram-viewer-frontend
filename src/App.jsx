@@ -55,7 +55,7 @@ function App() {
       />
 
       <header className="topbar">
-        <div className="topbar-time">Interactive Seismogram Viewer</div>
+        <div className="topbar-time">Interactive Waveform Viewer</div>
 
         <nav className="topbar-tabs" aria-label="Waveform data mode">
           <button
