@@ -875,118 +875,104 @@ function ProcessingPipeline({
                                 </label>
 
                                 <div className="pre-filt-section">
-                                    <div className="pre-filt-title">
-                                        Pre-filter (Hz)
+                                  <div className="pre-filt-title">
+                                    Pre-filter (Hz)
 
-                                        <span
-                                            className="info-icon"
-                                            title="Membatasi rentang frekuensi yang dikoreksi, agar noise di luar rentang ini tidak diperkuat berlebihan saat instrument correction."
-                                        >
-                                            {"\u24D8"}
-                                        </span>
+                                    <span
+                                      className="info-icon"
+                                      title="Empat corner frequencies untuk pre-filter. F1-F2 membentuk taper bawah, F2-F3 adalah passband, dan F3-F4 membentuk taper atas."
+                                    >
+                                      {"\u24D8"}
+                                    </span>
+                                  </div>
+
+                                  <div className="pre-filt-groups">
+                                    <div className="pre-filt-group">
+                                      <div className="pre-filt-group-label">F1</div>
+                                      <NumberField
+                                        step="0.001"
+                                        min="0"
+                                        className={
+                                          pf.errorBawah
+                                            ? "pre-filt-field-invalid"
+                                            : undefined
+                                        }
+                                        value={operation.params.preFiltF1}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                          updateOperation(operation.id, {
+                                            params: { preFiltF1: nextValue },
+                                          })
+                                        }
+                                      />
                                     </div>
 
-                                    <div className="pre-filt-groups">
-                                        <div className="pre-filt-group">
-                                            <div className="pre-filt-group-label">
-                                                Roll-off Bawah
-                                            </div>
-
-                                            <div className="pre-filt-fields">
-                                                <NumberField
-                                                    step="0.001"
-                                                    min="0"
-                                                    className={
-                                                      pf.errorBawah
-                                                        ? "pre-filt-field-invalid"
-                                                        : undefined
-                                                    }
-                                                    value={operation.params.preFiltF1}
-                                                    disabled={isProcessing}
-                                                    onCommit={(nextValue) =>
-                                                        updateOperation(operation.id, {
-                                                            params: {
-                                                                preFiltF1: nextValue,
-                                                            },
-                                                        })
-                                                    }
-                                                />
-
-                                                <NumberField
-                                                    step="0.001"
-                                                    min="0"
-                                                    className={
-                                                      pf.errorBawah
-                                                        ? "pre-filt-field-invalid"
-                                                        : undefined
-                                                    }
-                                                    value={operation.params.preFiltF2}
-                                                    disabled={isProcessing}
-                                                    onCommit={(nextValue) =>
-                                                        updateOperation(operation.id, {
-                                                            params: {
-                                                                preFiltF2: nextValue,
-                                                            },
-                                                        })
-                                                    }
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="pre-filt-group">
-                                            <div className="pre-filt-group-label">
-                                                Roll-off Atas
-                                            </div>
-
-                                            <div className="pre-filt-fields">
-                                                <NumberField
-                                                    step="0.1"
-                                                    min="0"
-                                                    className={
-                                                      pf.errorAtas
-                                                        ? "pre-filt-field-invalid"
-                                                        : undefined
-                                                    }
-                                                    value={operation.params.preFiltF3}
-                                                    disabled={isProcessing}
-                                                    onCommit={(nextValue) =>
-                                                        updateOperation(operation.id, {
-                                                            params: {
-                                                                preFiltF3: nextValue,
-                                                            },
-                                                        })
-                                                    }
-                                                />
-
-                                                <NumberField
-                                                    step="0.1"
-                                                    min="0"
-                                                    className={
-                                                      pf.errorAtas
-                                                        ? "pre-filt-field-invalid"
-                                                        : undefined
-                                                    }
-                                                    value={operation.params.preFiltF4}
-                                                    disabled={isProcessing}
-                                                    onCommit={(nextValue) =>
-                                                        updateOperation(operation.id, {
-                                                            params: {
-                                                                preFiltF4: nextValue,
-                                                            },
-                                                        })
-                                                    }
-                                                />
-                                            </div>
-                                        </div>
+                                    <div className="pre-filt-group">
+                                      <div className="pre-filt-group-label">F2</div>
+                                      <NumberField
+                                        step="0.001"
+                                        min="0"
+                                        className={
+                                          pf.errorBawah
+                                            ? "pre-filt-field-invalid"
+                                            : undefined
+                                        }
+                                        value={operation.params.preFiltF2}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                          updateOperation(operation.id, {
+                                            params: { preFiltF2: nextValue },
+                                          })
+                                        }
+                                      />
                                     </div>
 
-                                    {!pf.valid && (
-                                        <div className="pre-filt-validation-msg">
-                                            Nilai pre-filter harus berurutan:
-                                            frekuensi bawah {"<"} frekuensi atas
-                                            (f1 {"<"} f2 {"<"} f3 {"<"} f4).
-                                        </div>
-                                    )}
+                                    <div className="pre-filt-group">
+                                      <div className="pre-filt-group-label">F3</div>
+                                      <NumberField
+                                        step="0.1"
+                                        min="0"
+                                        className={
+                                          pf.errorAtas
+                                            ? "pre-filt-field-invalid"
+                                            : undefined
+                                        }
+                                        value={operation.params.preFiltF3}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                          updateOperation(operation.id, {
+                                            params: { preFiltF3: nextValue },
+                                          })
+                                        }
+                                      />
+                                    </div>
+
+                                    <div className="pre-filt-group">
+                                      <div className="pre-filt-group-label">F4</div>
+                                      <NumberField
+                                        step="0.1"
+                                        min="0"
+                                        className={
+                                          pf.errorAtas
+                                            ? "pre-filt-field-invalid"
+                                            : undefined
+                                        }
+                                        value={operation.params.preFiltF4}
+                                        disabled={isProcessing}
+                                        onCommit={(nextValue) =>
+                                          updateOperation(operation.id, {
+                                            params: { preFiltF4: nextValue },
+                                          })
+                                        }
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {!pf.valid && (
+                                    <div className="pre-filt-validation-msg">
+                                      Frekuensi harus berurutan: F1 {"<"} F2 {"<"} F3 {"<"} F4.
+                                    </div>
+                                  )}
                                 </div>
 
                                 <label className="processing-filter-type-field water-level-field">
